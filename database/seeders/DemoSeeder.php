@@ -98,6 +98,16 @@ class DemoSeeder extends Seeder
         $parts = Calc::breakdown($start, $end);
         $cost = Calc::rentalCost($start, $end, (string) $price->daily_price);
 
+        // Mobil listrik di garasi listrik: biaya = (kapasitas - sisa baterai) x harga/kWh.
+        // Sisa baterai demo bervariasi 15%-45% dari kapasitas.
+        $current = $charge = null;
+        $electricity = '0.00';
+        if ($garage->type->hasElectricityPrice() && $vehicle->battery_capacity_kwh) {
+            $current = bcadd((string) round((float) $vehicle->battery_capacity_kwh * (0.15 + 0.1 * ($garage->sequence % 4)), 1), '0', 2);
+            $charge = bcsub((string) $vehicle->battery_capacity_kwh, $current, 2);
+            $electricity = bcmul($charge, (string) $price->electricity_price_per_kwh, 2);
+        }
+
         return Rental::create([
             'user_id' => $user->id, 'vehicle_id' => $vehicle->id, 'garage_id' => $garage->id,
             'rental_type' => $parts['monthly'] > 0 ? RentalType::Monthly : RentalType::Daily,
@@ -106,8 +116,9 @@ class DemoSeeder extends Seeder
             'monthly_count' => $parts['monthly'], 'daily_count' => $parts['daily'],
             'daily_price' => $price->daily_price, 'monthly_price' => $price->monthly_price,
             'electricity_price_per_kwh' => $price->electricity_price_per_kwh,
-            'electricity_cost' => 0, // rumus biaya listrik masih pending
-            'rental_cost' => $cost, 'total_price' => $cost,
+            'battery_current_kwh' => $current, 'battery_charge_kwh' => $charge,
+            'electricity_cost' => $electricity,
+            'rental_cost' => $cost, 'total_price' => bcadd($cost, $electricity, 2),
             'payment_proof_path' => self::PROOF_PATH,
             'payment_status' => $payment,
             'payment_rejection_reason' => $reason,

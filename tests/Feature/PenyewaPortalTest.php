@@ -115,7 +115,7 @@ class PenyewaPortalTest extends TestCase
 
         $this->actingAs($user)->post('/penyewa/rentals', $this->payload([
             'vehicle_type' => 'electric_car', 'plate_number' => 'DD 9 EV', 'brand' => 'Hyundai', 'model' => 'Ioniq 5',
-            'battery_capacity_kwh' => 58, 'rental_type' => 'monthly', 'days' => null,
+            'battery_capacity_kwh' => 58, 'battery_current_kwh' => 20, 'rental_type' => 'monthly', 'days' => null,
             'start_date' => $start->toDateString(), 'garage_type' => 'electric_car', 'garage_id' => $this->garage('E001')->id,
         ]))->assertRedirect();
 
@@ -123,8 +123,20 @@ class PenyewaPortalTest extends TestCase
         $this->assertSame(RentalType::Monthly, $rental->rental_type);
         $this->assertSame($start->copy()->addDays($start->daysInMonth - 1)->toDateString(), $rental->end_date->toDateString());
         $this->assertSame(1, $rental->monthly_count);
-        $this->assertSame('174000.00', $rental->electricity_cost); // 58 kWh x 3.000
-        $this->assertSame(bcadd('3000000.00', '174000.00', 2), $rental->total_price);
+        $this->assertSame('114000.00', $rental->electricity_cost); // (58 - 20) kWh x 3.000
+        $this->assertSame('20.00', $rental->battery_current_kwh);
+        $this->assertSame('38.00', $rental->battery_charge_kwh);
+        $this->assertSame(bcadd('3000000.00', '114000.00', 2), $rental->total_price);
+    }
+
+    public function test_current_battery_required_for_electric_garage_and_not_above_capacity(): void
+    {
+        $user = $this->penyewa();
+        $ev = ['vehicle_type' => 'electric_car', 'plate_number' => 'DD 7 EV', 'battery_capacity_kwh' => 58, 'garage_type' => 'electric_car', 'garage_id' => $this->garage('E001')->id];
+
+        $this->actingAs($user)->post('/penyewa/rentals', $this->payload($ev))->assertSessionHasErrors('battery_current_kwh');
+        $this->actingAs($user)->post('/penyewa/rentals', $this->payload($ev + ['battery_current_kwh' => 60]))->assertSessionHasErrors('battery_current_kwh');
+        $this->assertSame(0, Rental::count());
     }
 
     public function test_electric_car_in_regular_garage_pays_no_electricity(): void

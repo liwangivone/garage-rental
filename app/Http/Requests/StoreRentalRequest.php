@@ -40,6 +40,8 @@ class StoreRentalRequest extends FormRequest
             'brand' => [Rule::requiredIf($isNew), 'nullable', 'string', 'max:100'],
             'model' => [Rule::requiredIf($isNew), 'nullable', 'string', 'max:100'],
             'battery_capacity_kwh' => [Rule::requiredIf($isNew && $type?->requiresBatteryCapacity()), 'nullable', 'numeric', 'min:1', 'max:500'],
+            // Wajib & maksimal kapasitas dicek di RentalBookingService (kapasitas bisa dari kendaraan tersimpan).
+            'battery_current_kwh' => ['nullable', 'numeric', 'min:0', 'max:500'],
             'rental_type' => ['required', Rule::enum(RentalType::class)],
             'days' => [Rule::requiredIf($this->input('rental_type') === RentalType::Daily->value), 'nullable', 'integer', 'min:1', 'max:30'],
             'start_date' => ['required', 'date'],

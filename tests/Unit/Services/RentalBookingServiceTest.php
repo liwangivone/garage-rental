@@ -205,23 +205,47 @@ class RentalBookingServiceTest extends TestCase
         $this->assertSame([], $next['errors']);
     }
 
-    public function test_electricity_cost_only_for_electric_car_in_electric_garage(): void
+    public function test_electricity_cost_is_capacity_minus_current_battery_times_price(): void
     {
         $electric = $this->garage(GarageType::ElectricCar, 1, '120000', '3000');
+        $base = ['vehicle_type' => 'electric_car', 'battery_capacity_kwh' => 57.5, 'garage_type' => 'electric_car', 'garage_id' => $electric->id, 'days' => 2];
 
-        // mobil listrik di garasi listrik: 57,5 kWh x 3.000 = 172.500, sekali bayar
-        $ev = $this->quote(['vehicle_type' => 'electric_car', 'battery_capacity_kwh' => 57.5, 'garage_type' => 'electric_car', 'garage_id' => $electric->id, 'days' => 2]);
-        $this->assertSame('172500.00', $ev['costs']['electricity_cost']);
+        // (57,5 - 15) kWh x 3.000 = 127.500, sekali bayar
+        $ev = $this->quote($base + ['battery_current_kwh' => 15]);
+        $this->assertSame([], $ev['errors']);
+        $this->assertSame('127500.00', $ev['costs']['electricity_cost']);
+        $this->assertSame('42.50', $ev['costs']['battery_charge_kwh']);
+        $this->assertSame('15.00', $ev['costs']['battery_current_kwh']);
         $this->assertSame('240000.00', $ev['costs']['rental_cost']);
-        $this->assertSame('412500.00', $ev['costs']['total']);
+        $this->assertSame('367500.00', $ev['costs']['total']);
 
-        // mobil listrik di garasi mobil biasa: tanpa listrik
+        // baterai sudah penuh: tidak ada biaya listrik
+        $full = $this->quote($base + ['battery_current_kwh' => 57.5]);
+        $this->assertSame([], $full['errors']);
+        $this->assertSame('0.00', $full['costs']['electricity_cost']);
+
+        // baterai kosong: biaya kapasitas penuh
+        $this->assertSame('172500.00', $this->quote($base + ['battery_current_kwh' => 0])['costs']['electricity_cost']);
+
+        // mobil listrik di garasi mobil biasa: tanpa listrik dan sisa baterai tidak diperlukan
         $inCar = $this->quote(['vehicle_type' => 'electric_car', 'battery_capacity_kwh' => 57.5]);
         $this->assertSame('0.00', $inCar['costs']['electricity_cost']);
+        $this->assertArrayNotHasKey('battery_current_kwh', $inCar['errors']);
+    }
 
-        // tanpa kapasitas baterai: tidak ada biaya listrik
-        $noBattery = $this->quote(['vehicle_type' => 'electric_car', 'garage_type' => 'electric_car', 'garage_id' => $electric->id]);
-        $this->assertSame('0.00', $noBattery['costs']['electricity_cost']);
+    public function test_current_battery_is_required_and_cannot_exceed_capacity(): void
+    {
+        $electric = $this->garage(GarageType::ElectricCar, 1, '120000', '3000');
+        $base = ['vehicle_type' => 'electric_car', 'battery_capacity_kwh' => 50, 'garage_type' => 'electric_car', 'garage_id' => $electric->id];
+
+        $missing = $this->quote($base);
+        $this->assertArrayHasKey('battery_current_kwh', $missing['errors']);
+        $this->assertSame('0.00', $missing['costs']['electricity_cost']);
+
+        $tooHigh = $this->quote($base + ['battery_current_kwh' => 50.5]);
+        $this->assertArrayHasKey('battery_current_kwh', $tooHigh['errors']);
+
+        $this->assertArrayHasKey('battery_current_kwh', $this->quote($base + ['battery_current_kwh' => 'abc'])['errors']);
     }
 
     public function test_saved_electric_vehicle_uses_its_own_battery(): void
@@ -229,9 +253,10 @@ class RentalBookingServiceTest extends TestCase
         $electric = $this->garage(GarageType::ElectricCar, 1, '120000', '3000');
         $ev = $this->vehicle($this->user, VehicleType::ElectricCar, ['battery_capacity_kwh' => 40]);
 
-        $q = $this->quote(['vehicle_id' => $ev->id, 'vehicle_type' => null, 'garage_type' => 'electric_car', 'garage_id' => $electric->id, 'days' => 1]);
+        $q = $this->quote(['vehicle_id' => $ev->id, 'vehicle_type' => null, 'garage_type' => 'electric_car', 'garage_id' => $electric->id, 'days' => 1, 'battery_current_kwh' => 10]);
 
-        $this->assertSame('120000.00', $q['costs']['electricity_cost']); // 40 x 3.000
+        $this->assertSame('90000.00', $q['costs']['electricity_cost']); // (40 - 10) x 3.000
+        $this->assertSame('30.00', $q['costs']['battery_charge_kwh']);
     }
 
     public function test_quote_for_json_shape(): void
