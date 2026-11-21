@@ -2,13 +2,25 @@
 
 use App\Http\Controllers\Admin;
 use App\Http\Controllers\AuthController;
+use App\Http\Controllers\Penyewa;
+use App\Http\Controllers\RegisterController;
 use Illuminate\Support\Facades\Route;
 
-Route::redirect('/', '/admin');
+Route::get('/', function () {
+    $user = auth()->user();
+
+    return redirect()->route(match (true) {
+        $user === null => 'login',
+        $user->isAdmin() => 'admin.dashboard',
+        default => 'penyewa.dashboard',
+    });
+});
 
 Route::middleware('guest')->group(function () {
     Route::get('/login', [AuthController::class, 'showLogin'])->name('login');
     Route::post('/login', [AuthController::class, 'login']);
+    Route::get('/register', [RegisterController::class, 'show'])->name('register');
+    Route::post('/register', [RegisterController::class, 'store']);
 });
 
 Route::post('/logout', [AuthController::class, 'logout'])->middleware('auth')->name('logout');
@@ -29,4 +41,16 @@ Route::prefix('admin')->name('admin.')->middleware(['auth', 'admin'])->group(fun
     Route::post('/extensions/{rental}', [Admin\ExtensionController::class, 'update'])->name('extensions.update');
 
     Route::get('/reports', Admin\ReportController::class)->name('reports.index');
+});
+
+Route::prefix('penyewa')->name('penyewa.')->middleware(['auth', 'penyewa'])->group(function () {
+    Route::get('/', Penyewa\DashboardController::class)->name('dashboard');
+
+    Route::get('/rentals', [Penyewa\RentalController::class, 'index'])->name('rentals.index');
+    Route::middleware('approved')->group(function () {
+        Route::get('/rentals/create', [Penyewa\RentalController::class, 'create'])->name('rentals.create');
+        Route::get('/rentals/quote', [Penyewa\RentalController::class, 'quote'])->name('rentals.quote');
+        Route::post('/rentals', [Penyewa\RentalController::class, 'store'])->name('rentals.store');
+    });
+    Route::get('/rentals/{rental}', [Penyewa\RentalController::class, 'show'])->name('rentals.show');
 });

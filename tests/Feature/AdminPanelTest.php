@@ -29,15 +29,15 @@ class AdminPanelTest extends TestCase
         $this->actingAs(User::factory()->create())->get('/admin')->assertForbidden();
     }
 
-    public function test_login_only_for_admin(): void
+    public function test_login_redirects_by_role(): void
     {
         $admin = $this->admin();
         $penyewa = User::factory()->create();
 
         $this->post('/login', ['email' => $admin->email, 'password' => 'password'])->assertRedirect('/admin');
         $this->post('/logout');
-        $this->post('/login', ['email' => $penyewa->email, 'password' => 'password'])->assertSessionHasErrors('email');
-        $this->assertGuest();
+        $this->post('/login', ['email' => $penyewa->email, 'password' => 'password'])->assertRedirect('/penyewa');
+        $this->post('/logout');
         $this->post('/login', ['email' => $admin->email, 'password' => 'salah'])->assertSessionHasErrors('email');
     }
 

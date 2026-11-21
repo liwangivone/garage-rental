@@ -15,6 +15,7 @@ use App\Services\GarageBatchService;
 use App\Services\RentalPeriodCalculator as Calc;
 use Carbon\CarbonInterface;
 use Illuminate\Database\Seeder;
+use Illuminate\Support\Facades\Storage;
 
 /**
  * Data contoh untuk mencoba halaman admin. TIDAK ikut `db:seed` biasa.
@@ -22,6 +23,8 @@ use Illuminate\Database\Seeder;
  */
 class DemoSeeder extends Seeder
 {
+    private const PROOF_PATH = 'demo/proof.svg';
+
     public function run(GarageBatchService $garages): void
     {
         $this->call(AdminSeeder::class);
@@ -33,6 +36,9 @@ class DemoSeeder extends Seeder
         }
 
         $admin = User::where('role', UserRole::Admin)->firstOrFail();
+
+        // Gambar placeholder untuk bukti bayar data demo.
+        Storage::disk('public')->put(self::PROOF_PATH, '<svg xmlns="http://www.w3.org/2000/svg" width="480" height="320" viewBox="0 0 480 320"><rect width="480" height="320" fill="#f4eee1"/><rect x="16" y="16" width="448" height="288" fill="none" stroke="#e8681a" stroke-width="4" stroke-dasharray="14 8"/><text x="240" y="150" font-family="sans-serif" font-size="26" font-weight="700" text-anchor="middle" fill="#2a2d31">CONTOH BUKTI BAYAR</text><text x="240" y="186" font-family="sans-serif" font-size="16" text-anchor="middle" fill="#6e747b">data demo</text></svg>');
 
         $garages->create($admin, GarageType::Bicycle, 5, '15000', null);
         $garages->create($admin, GarageType::Car, 6, '75000', null);
@@ -94,7 +100,7 @@ class DemoSeeder extends Seeder
             'electricity_price_per_kwh' => $batch->electricity_price_per_kwh,
             'electricity_cost' => 0, // rumus biaya listrik masih pending
             'rental_cost' => $cost, 'total_price' => $cost,
-            'payment_proof_path' => 'demo/proof.jpg',
+            'payment_proof_path' => self::PROOF_PATH,
         ]);
     }
 }

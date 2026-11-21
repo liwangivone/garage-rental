@@ -84,6 +84,16 @@ class Rental extends Model
         return null;
     }
 
+    /** upcoming | active | finished (berdasarkan tanggal hari ini). */
+    public function phase(): string
+    {
+        if ($this->start_date->gt(today())) {
+            return 'upcoming';
+        }
+
+        return $this->end_date->lt(today()) ? 'finished' : 'active';
+    }
+
     public function isActiveOn(?\DateTimeInterface $date = null): bool
     {
         $date = \Illuminate\Support\Carbon::instance($date ?? now())->startOfDay();
