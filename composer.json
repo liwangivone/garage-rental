@@ -40,6 +40,10 @@
             "npm install --ignore-scripts",
             "npm run build"
         ],
+        "serve": [
+            "Composer\\Config::disableProcessTimeout",
+            "@php artisan serve --host=\"[::]\""
+        ],
         "dev": [
             "Composer\\Config::disableProcessTimeout",
             "@php artisan dev"
