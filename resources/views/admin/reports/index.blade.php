@@ -34,13 +34,15 @@
         <button class="btn btn-primary">Tampilkan</button>
     </form>
 
-    <div class="mb-6 grid gap-4 sm:grid-cols-2">
-        <x-stat label="Jumlah sewa" :value="$report['count']" :hint="$periodLabel" />
-        <x-stat label="Total pendapatan" :value="\App\Support\Format::rupiah($report['revenue'])" hint="Sewa + perpanjangan, dihitung di tanggal mulai sewa" accent />
+    <div class="mb-6 grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
+        <x-stat label="Jumlah sewa" :value="$report['count']" :hint="$periodLabel.' · pembayaran terverifikasi'" />
+        <x-stat label="Pendapatan sewa" :value="\App\Support\Format::rupiah($report['rental'])" hint="Termasuk perpanjangan, di tanggal mulai sewa" />
+        <x-stat label="Biaya listrik" :value="\App\Support\Format::rupiah($report['electricity'])" />
+        <x-stat label="Total" :value="\App\Support\Format::rupiah($report['revenue'])" hint="Sewa + listrik" accent />
     </div>
 
     <section class="card mb-6 p-5">
-        <h2 class="card-title mb-4">Pendapatan {{ strtolower($views[$view]) }}</h2>
+        <h2 class="card-title mb-4">Total {{ strtolower($views[$view]) }}</h2>
         @if ($report['rows']->isEmpty() || $report['revenue'] == 0)
             <p class="py-10 text-center text-sm text-charcoal-500">Belum ada data sewa pada periode ini.</p>
         @else
@@ -50,22 +52,26 @@
 
     <section class="card table-wrap">
         <table class="table">
-            <thead><tr><th>{{ $firstColumn }}</th><th class="text-right">Jumlah sewa</th><th class="text-right">Pendapatan</th></tr></thead>
+            <thead><tr><th>{{ $firstColumn }}</th><th class="text-right">Jumlah sewa</th><th class="text-right">Sewa</th><th class="text-right">Listrik</th><th class="text-right">Total</th></tr></thead>
             <tbody>
                 @forelse ($report['rows'] as $row)
                     <tr>
                         <td>{{ $row['label'] }}</td>
                         <td class="text-right">{{ $row['count'] }}</td>
-                        <td class="text-right">@rupiah($row['revenue'])</td>
+                        <td class="text-right">@rupiah($row['rental'])</td>
+                        <td class="text-right">@rupiah($row['electricity'])</td>
+                        <td class="text-right font-medium">@rupiah($row['revenue'])</td>
                     </tr>
                 @empty
-                    <tr><td colspan="3" class="py-8 text-center text-charcoal-500">Tidak ada data.</td></tr>
+                    <tr><td colspan="5" class="py-8 text-center text-charcoal-500">Tidak ada data.</td></tr>
                 @endforelse
             </tbody>
             <tfoot>
                 <tr class="bg-cream-100 font-semibold">
                     <td class="px-4 py-3 uppercase tracking-wider">Total</td>
                     <td class="px-4 py-3 text-right">{{ $report['count'] }}</td>
+                    <td class="px-4 py-3 text-right">@rupiah($report['rental'])</td>
+                    <td class="px-4 py-3 text-right">@rupiah($report['electricity'])</td>
                     <td class="px-4 py-3 text-right">@rupiah($report['revenue'])</td>
                 </tr>
             </tfoot>

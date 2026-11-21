@@ -2,6 +2,7 @@
 
 namespace App\Models;
 
+use App\Enums\PaymentStatus;
 use App\Enums\RentalType;
 use Illuminate\Database\Eloquent\Attributes\Fillable;
 use Illuminate\Database\Eloquent\Model;
@@ -12,6 +13,7 @@ use Illuminate\Database\Eloquent\Relations\HasMany;
     'user_id', 'vehicle_id', 'garage_id', 'rental_type', 'start_date', 'end_date', 'duration_days', 'monthly_count', 'daily_count',
     'daily_price', 'monthly_price', 'electricity_price_per_kwh', 'electricity_cost',
     'rental_cost', 'total_price', 'payment_proof_path',
+    'payment_status', 'payment_rejection_reason', 'payment_verified_at', 'payment_verified_by',
 ])]
 class Rental extends Model
 {
@@ -30,7 +32,30 @@ class Rental extends Model
             'electricity_cost' => 'decimal:2',
             'rental_cost' => 'decimal:2',
             'total_price' => 'decimal:2',
+            'payment_status' => PaymentStatus::class,
+            'payment_verified_at' => 'datetime',
         ];
+    }
+
+    /** Sewa yang masih menempati garasi: belum ditolak pembayarannya. */
+    public function scopeOccupying($query)
+    {
+        return $query->where('payment_status', '!=', PaymentStatus::Rejected->value);
+    }
+
+    public function scopeApproved($query)
+    {
+        return $query->where('payment_status', PaymentStatus::Approved->value);
+    }
+
+    public function paymentVerifier(): BelongsTo
+    {
+        return $this->belongsTo(User::class, 'payment_verified_by');
+    }
+
+    public function isPaymentApproved(): bool
+    {
+        return $this->payment_status === PaymentStatus::Approved;
     }
 
     public function penyewa(): BelongsTo
@@ -64,10 +89,28 @@ class Rental extends Model
         return $this->extensionError($newEnd) === null;
     }
 
+    /** Sewa yang sudah berakhir atau belum terverifikasi tidak bisa diperpanjang. */
+    public function extendableError(): ?string
+    {
+        if (! $this->isPaymentApproved()) {
+            return 'Verifikasi bukti bayar sewa ini terlebih dahulu.';
+        }
+
+        if ($this->end_date->lt(today())) {
+            return 'Sewa yang sudah berakhir tidak dapat diperpanjang. Penyewa perlu membuat sewa baru.';
+        }
+
+        return null;
+    }
+
     /** Alasan perpanjangan ditolak, atau null bila boleh. */
     public function extensionError(\Carbon\CarbonInterface $newEndDate): ?string
     {
         $newEnd = \Illuminate\Support\Carbon::instance($newEndDate)->startOfDay();
+
+        if ($error = $this->extendableError()) {
+            return $error;
+        }
 
         if (! $newEnd->gt($this->end_date)) {
             return 'Tanggal selesai baru harus setelah tanggal selesai saat ini.';

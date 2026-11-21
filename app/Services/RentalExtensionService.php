@@ -13,29 +13,33 @@ class RentalExtensionService
 {
     /**
      * Hitung biaya baru bila sewa diperpanjang sampai $newEnd (aturan sewa baru
-     * dari tanggal mulai asli). Biaya listrik masih PENDING, jadi nilai tersimpan dipertahankan.
+     * dari tanggal mulai asli, harga lama). Biaya listrik tambahan (opsional) diisi admin.
      *
      * @return array{breakdown: array{monthly:int,daily:int}, duration_days:int, rental_cost:string, previous_total:string, new_total:string, additional_cost:string}
      */
-    public function preview(Rental $rental, Carbon $newEnd): array
+    public function preview(Rental $rental, Carbon $newEnd, string $extraElectricity = '0'): array
     {
+        // Harga memakai snapshot saat sewa dibuat (harga lama). Biaya listrik tambahan diisi admin.
         $rentalCost = RentalPeriodCalculator::rentalCost($rental->start_date, $newEnd, (string) $rental->daily_price);
-        $newTotal = bcadd($rentalCost, (string) $rental->electricity_cost, 2);
+        $electricity = bcadd((string) $rental->electricity_cost, $extraElectricity, 2);
+        $newTotal = bcadd($rentalCost, $electricity, 2);
 
         return [
             'breakdown' => RentalPeriodCalculator::breakdown($rental->start_date, $newEnd),
             'duration_days' => RentalPeriodCalculator::durationInDays($rental->start_date, $newEnd),
             'rental_cost' => $rentalCost,
+            'electricity_cost' => $electricity,
+            'extra_electricity' => bcadd($extraElectricity, '0', 2),
             'previous_total' => (string) $rental->total_price,
             'new_total' => $newTotal,
             'additional_cost' => bcsub($newTotal, (string) $rental->total_price, 2),
         ];
     }
 
-    public function extend(Rental $rental, Carbon $newEnd, UploadedFile $proof, User $admin): RentalExtension
+    public function extend(Rental $rental, Carbon $newEnd, UploadedFile $proof, User $admin, string $extraElectricity = '0'): RentalExtension
     {
         $path = $proof->store('extension-proofs', 'public');
-        $calc = $this->preview($rental, $newEnd);
+        $calc = $this->preview($rental, $newEnd, $extraElectricity);
 
         return DB::transaction(function () use ($rental, $newEnd, $admin, $path, $calc) {
             $extension = RentalExtension::create([
@@ -48,6 +52,7 @@ class RentalExtensionService
                 'previous_total_price' => $calc['previous_total'],
                 'new_total_price' => $calc['new_total'],
                 'additional_cost' => $calc['additional_cost'],
+                'electricity_cost' => $calc['extra_electricity'],
                 'payment_proof_path' => $path,
             ]);
 
@@ -58,8 +63,10 @@ class RentalExtensionService
                 'daily_count' => $calc['breakdown']['daily'],
                 'rental_type' => $calc['breakdown']['monthly'] > 0 ? 'monthly' : 'daily',
                 'rental_cost' => $calc['rental_cost'],
+                'electricity_cost' => $calc['electricity_cost'],
                 'total_price' => $calc['new_total'],
             ]);
+            $rental->garage->syncStatus();
 
             return $extension;
         });

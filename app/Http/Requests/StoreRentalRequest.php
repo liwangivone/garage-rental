@@ -35,7 +35,7 @@ class StoreRentalRequest extends FormRequest
             'vehicle_type' => [Rule::requiredIf($isNew), 'nullable', Rule::enum(VehicleType::class)],
             'plate_number' => [
                 Rule::requiredIf($isNew && $type?->requiresPlateNumber()),
-                'nullable', 'string', 'max:15', Rule::unique('vehicles', 'plate_number'),
+                'nullable', 'string', 'max:15',
             ],
             'brand' => [Rule::requiredIf($isNew), 'nullable', 'string', 'max:100'],
             'model' => [Rule::requiredIf($isNew), 'nullable', 'string', 'max:100'],

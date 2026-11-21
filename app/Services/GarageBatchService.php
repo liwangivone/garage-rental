@@ -6,6 +6,7 @@ use App\Enums\GarageStatus;
 use App\Enums\GarageType;
 use App\Models\Garage;
 use App\Models\GarageBatch;
+use App\Models\GaragePrice;
 use App\Models\User;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Validation\ValidationException;
@@ -36,6 +37,17 @@ class GarageBatchService
                 'electricity_price_per_kwh' => $type->hasElectricityPrice() ? $electricityPrice : null,
                 'created_by' => $admin->id,
             ]);
+
+            // Satu harga per tipe: harga yang diisi di sini menjadi harga berlaku untuk seluruh
+            // garasi tipe ini pada sewa berikutnya (sewa lama tetap memakai harga saat transaksi).
+            GaragePrice::updateOrCreate(
+                ['type' => $type],
+                [
+                    'daily_price' => $dailyPrice,
+                    'electricity_price_per_kwh' => $type->hasElectricityPrice() ? $electricityPrice : null,
+                    'updated_by' => $admin->id,
+                ],
+            );
 
             $now = now();
             $rows = [];

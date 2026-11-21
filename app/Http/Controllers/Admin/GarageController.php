@@ -5,6 +5,7 @@ namespace App\Http\Controllers\Admin;
 use App\Enums\GarageType;
 use App\Http\Controllers\Controller;
 use App\Models\Garage;
+use App\Models\GaragePrice;
 use App\Services\GarageBatchService;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
@@ -18,17 +19,25 @@ class GarageController extends Controller
         $type = GarageType::tryFrom((string) $request->query('type'));
 
         $garages = Garage::query()
-            ->with(['batch', 'currentRental.penyewa'])
+            ->with(['currentRental.penyewa'])
             ->when($type, fn ($q) => $q->where('type', $type))
             ->orderBy('type')->orderBy('sequence')
             ->paginate(20)->withQueryString();
 
-        return view('admin.garages.index', ['garages' => $garages, 'type' => $type]);
+        return view('admin.garages.index', [
+            'garages' => $garages,
+            'type' => $type,
+            'prices' => GaragePrice::all()->keyBy(fn (GaragePrice $p) => $p->type->value),
+        ]);
     }
 
     public function create(): View
     {
         return view('admin.garages.create', [
+            'prices' => GaragePrice::all()->mapWithKeys(fn (GaragePrice $p) => [$p->type->value => [
+                'daily' => (int) $p->daily_price,
+                'kwh' => $p->electricity_price_per_kwh !== null ? (int) $p->electricity_price_per_kwh : null,
+            ]]),
             'nextCodes' => collect(GarageType::cases())->mapWithKeys(
                 fn (GarageType $t) => [$t->value => Garage::makeCode($t, min(Garage::nextSequence($t), Garage::MAX_PER_TYPE))],
             ),

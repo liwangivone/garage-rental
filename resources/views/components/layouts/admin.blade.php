@@ -10,10 +10,11 @@
         ['admin.dashboard', 'Dashboard', 'dashboard', 'admin.dashboard'],
         ['admin.garages.index', 'Garasi', 'garage', 'admin.garages.*'],
         ['admin.registrations.index', 'Verifikasi Pendaftar', 'users', 'admin.registrations.*'],
-        ['admin.extensions.index', 'Perpanjang Sewa', 'clock', 'admin.extensions.*'],
+        ['admin.rentals.index', 'Sewa', 'clock', 'admin.rentals.*'],
         ['admin.reports.index', 'Laporan', 'chart', 'admin.reports.*'],
     ];
     $pendingCount = \App\Models\User::pendingVerification()->count();
+    $pendingRentals = \App\Models\Rental::where('payment_status', 'pending')->count();
 @endphp
 
 <div id="sidebar-backdrop" data-sidebar-toggle class="fixed inset-0 z-30 hidden bg-charcoal-950/60 lg:hidden"></div>
@@ -36,6 +37,9 @@
                 <span class="flex-1">{{ $label }}</span>
                 @if ($route === 'admin.registrations.index' && $pendingCount > 0)
                     <span class="rounded-sm bg-ember-500 px-1.5 text-xs font-semibold text-white">{{ $pendingCount }}</span>
+                @endif
+                @if ($route === 'admin.rentals.index' && $pendingRentals > 0)
+                    <span class="rounded-sm bg-ember-500 px-1.5 text-xs font-semibold text-white">{{ $pendingRentals }}</span>
                 @endif
             </a>
         @endforeach

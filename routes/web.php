@@ -2,6 +2,7 @@
 
 use App\Http\Controllers\Admin;
 use App\Http\Controllers\AuthController;
+use App\Http\Controllers\PasswordResetController;
 use App\Http\Controllers\Penyewa;
 use App\Http\Controllers\RegisterController;
 use Illuminate\Support\Facades\Route;
@@ -21,6 +22,11 @@ Route::middleware('guest')->group(function () {
     Route::post('/login', [AuthController::class, 'login']);
     Route::get('/register', [RegisterController::class, 'show'])->name('register');
     Route::post('/register', [RegisterController::class, 'store']);
+
+    Route::get('/forgot-password', [PasswordResetController::class, 'request'])->name('password.request');
+    Route::post('/forgot-password', [PasswordResetController::class, 'email'])->middleware('throttle:6,1')->name('password.email');
+    Route::get('/reset-password/{token}', [PasswordResetController::class, 'reset'])->name('password.reset');
+    Route::post('/reset-password', [PasswordResetController::class, 'update'])->name('password.update');
 });
 
 Route::post('/logout', [AuthController::class, 'logout'])->middleware('auth')->name('logout');
@@ -36,15 +42,21 @@ Route::prefix('admin')->name('admin.')->middleware(['auth', 'admin'])->group(fun
     Route::post('/registrations/{user}/approve', [Admin\RegistrationController::class, 'approve'])->name('registrations.approve');
     Route::post('/registrations/{user}/reject', [Admin\RegistrationController::class, 'reject'])->name('registrations.reject');
 
-    Route::get('/extensions', [Admin\ExtensionController::class, 'index'])->name('extensions.index');
-    Route::get('/extensions/{rental}', [Admin\ExtensionController::class, 'show'])->name('extensions.show');
-    Route::post('/extensions/{rental}', [Admin\ExtensionController::class, 'update'])->name('extensions.update');
+    Route::get('/rentals', [Admin\RentalController::class, 'index'])->name('rentals.index');
+    Route::get('/rentals/{rental}', [Admin\RentalController::class, 'show'])->name('rentals.show');
+    Route::post('/rentals/{rental}/approve', [Admin\RentalController::class, 'approve'])->name('rentals.approve');
+    Route::post('/rentals/{rental}/reject', [Admin\RentalController::class, 'reject'])->name('rentals.reject');
+    Route::post('/rentals/{rental}/extend', [Admin\RentalController::class, 'extend'])->name('rentals.extend');
+    Route::delete('/rentals/{rental}', [Admin\RentalController::class, 'destroy'])->name('rentals.destroy');
 
     Route::get('/reports', Admin\ReportController::class)->name('reports.index');
 });
 
 Route::prefix('penyewa')->name('penyewa.')->middleware(['auth', 'penyewa'])->group(function () {
     Route::get('/', Penyewa\DashboardController::class)->name('dashboard');
+
+    Route::get('/profile', [Penyewa\ProfileController::class, 'edit'])->name('profile.edit');
+    Route::put('/profile', [Penyewa\ProfileController::class, 'update'])->name('profile.update');
 
     Route::get('/rentals', [Penyewa\RentalController::class, 'index'])->name('rentals.index');
     Route::middleware('approved')->group(function () {

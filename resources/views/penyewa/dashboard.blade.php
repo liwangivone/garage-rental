@@ -8,7 +8,16 @@
         <div class="mb-6 border-l-4 border-brick bg-brick/10 px-4 py-3 text-sm text-charcoal-800">
             <strong class="font-semibold uppercase tracking-wider">Pendaftaran ditolak.</strong>
             @if ($user->rejection_reason) Alasan: {{ $user->rejection_reason }}. @endif
-            Silakan hubungi admin.
+        </div>
+        <div class="mb-6">
+            <a href="{{ route('penyewa.profile.edit') }}" class="btn btn-primary">Perbaiki data & ajukan ulang</a>
+        </div>
+    @endif
+
+    @if ($rejectedCount > 0)
+        <div class="mb-6 border-l-4 border-brick bg-brick/10 px-4 py-3 text-sm">
+            {{ $rejectedCount }} sewa ditolak pembayarannya.
+            <a href="{{ route('penyewa.rentals.index') }}" class="font-semibold text-brick underline">Lihat di Sewa Saya</a>
         </div>
     @endif
 

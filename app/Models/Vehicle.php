@@ -33,6 +33,7 @@ class Vehicle extends Model
     public function hasRentalBetween(CarbonInterface $start, CarbonInterface $end, ?int $ignoreRentalId = null): bool
     {
         return $this->rentals()
+            ->occupying()
             ->whereDate('start_date', '<=', $end)
             ->whereDate('end_date', '>=', $start)
             ->when($ignoreRentalId, fn ($q) => $q->where('id', '!=', $ignoreRentalId))

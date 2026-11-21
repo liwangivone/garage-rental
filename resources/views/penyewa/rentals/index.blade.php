@@ -7,7 +7,7 @@
 
     <div class="card table-wrap">
         <table class="table">
-            <thead><tr><th>Garasi</th><th>Kendaraan</th><th>Periode</th><th>Tipe</th><th>Total</th><th>Status</th><th></th></tr></thead>
+            <thead><tr><th>Garasi</th><th>Kendaraan</th><th>Periode</th><th>Tipe</th><th>Total</th><th>Status</th><th>Pembayaran</th><th></th></tr></thead>
             <tbody>
                 @forelse ($rentals as $rental)
                     <tr>
@@ -18,10 +18,11 @@
                         <td>{{ $rental->rental_type === \App\Enums\RentalType::Monthly ? 'Bulanan' : 'Harian' }}</td>
                         <td>@rupiah($rental->total_price)</td>
                         <td>@include('penyewa.rentals._phase', ['rental' => $rental])</td>
+                        <td><x-payment-badge :status="$rental->payment_status" /></td>
                         <td class="text-right"><a href="{{ route('penyewa.rentals.show', $rental) }}" class="text-xs font-semibold uppercase tracking-wider text-ember-600 hover:underline">Detail</a></td>
                     </tr>
                 @empty
-                    <tr><td colspan="7" class="py-10 text-center text-charcoal-500">Belum ada sewa.</td></tr>
+                    <tr><td colspan="8" class="py-10 text-center text-charcoal-500">Belum ada sewa.</td></tr>
                 @endforelse
             </tbody>
         </table>

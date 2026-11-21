@@ -45,12 +45,13 @@ class AdminPanelTest extends TestCase
     {
         $this->seed(DemoSeeder::class);
         $admin = User::where('role', UserRole::Admin)->first();
-        $rental = Rental::whereDate('start_date', '<=', today())->whereDate('end_date', '>=', today())->first();
+        $rental = Rental::approved()->whereDate('start_date', '<=', today())->whereDate('end_date', '>=', today())->first();
 
         foreach ([
             '/admin', '/admin/garages', '/admin/garages?type=car', '/admin/garages/create',
-            '/admin/registrations', '/admin/registrations?status=rejected', '/admin/extensions',
-            "/admin/extensions/{$rental->id}", "/admin/extensions/{$rental->id}?new_end_date=".today()->addDays(40)->toDateString(),
+            '/admin/registrations', '/admin/registrations?status=rejected', '/admin/rentals', '/admin/rentals?filter=active',
+            '/admin/rentals?filter=all', '/admin/rentals?filter=rejected',
+            "/admin/rentals/{$rental->id}", "/admin/rentals/{$rental->id}?new_end_date=".today()->addDays(40)->toDateString(),
             '/admin/reports', '/admin/reports?view=daily', '/admin/reports?view=type&year='.now()->year,
             '/admin/reports?view=penyewa&month='.now()->month,
         ] as $url) {
@@ -101,23 +102,27 @@ class AdminPanelTest extends TestCase
         $this->actingAs($admin)->post("/admin/registrations/{$admin->id}/approve")->assertNotFound();
     }
 
+    private function demoRental(string $code): Rental
+    {
+        return Rental::approved()->whereHas('garage', fn ($q) => $q->where('code', $code))->whereDate('end_date', '>=', today())->firstOrFail();
+    }
+
     public function test_extension_flow_charges_new_rule_and_stores_history(): void
     {
         Storage::fake('public');
         $this->seed(DemoSeeder::class);
         $admin = User::where('role', UserRole::Admin)->first();
         // Sewa Avanza di C001: 8 hari harian @75.000 = 600.000
-        $rental = Rental::whereHas('garage', fn ($q) => $q->where('code', 'C001'))->whereDate('end_date', '>=', today())->firstOrFail();
+        $rental = $this->demoRental('C001');
         $this->assertSame('600000.00', $rental->total_price);
 
-        // Perpanjang jadi 40 hari: bulan pertama (mulai bulan itu) + sisa harian
         $newEnd = $rental->start_date->copy()->addDays(39);
         $expected = \App\Services\RentalPeriodCalculator::rentalCost($rental->start_date, $newEnd, '75000');
 
-        $this->actingAs($admin)->post("/admin/extensions/{$rental->id}", [
+        $this->actingAs($admin)->post("/admin/rentals/{$rental->id}/extend", [
             'new_end_date' => $newEnd->toDateString(),
             'payment_proof' => UploadedFile::fake()->image('bukti.jpg'),
-        ])->assertRedirect('/admin/extensions');
+        ])->assertRedirect("/admin/rentals/{$rental->id}");
 
         $rental->refresh();
         $this->assertSame($newEnd->toDateString(), $rental->end_date->toDateString());
@@ -133,12 +138,13 @@ class AdminPanelTest extends TestCase
         Storage::fake('public');
         $this->seed(DemoSeeder::class);
         $admin = User::where('role', UserRole::Admin)->first();
-        $rental = Rental::whereHas('garage', fn ($q) => $q->where('code', 'C001'))->whereDate('end_date', '>=', today())->firstOrFail();
+        $rental = $this->demoRental('C001');
         $proof = fn () => UploadedFile::fake()->image('b.jpg');
+        $url = "/admin/rentals/{$rental->id}/extend";
 
-        // tidak lebih akhir dari tanggal selesai saat ini
-        $this->actingAs($admin)->post("/admin/extensions/{$rental->id}", ['new_end_date' => $rental->end_date->toDateString(), 'payment_proof' => $proof()])
-            ->assertSessionHasErrors('new_end_date');
+        // tidak lebih akhir dari tanggal selesai saat ini (tidak bisa diperpendek)
+        $this->actingAs($admin)->post($url, ['new_end_date' => $rental->end_date->toDateString(), 'payment_proof' => $proof()])->assertSessionHasErrors('new_end_date');
+        $this->actingAs($admin)->post($url, ['new_end_date' => $rental->end_date->copy()->subDay()->toDateString(), 'payment_proof' => $proof()])->assertSessionHasErrors('new_end_date');
 
         // bentrok dengan sewa lain di garasi yang sama
         $other = $rental->replicate()->fill([
@@ -146,16 +152,60 @@ class AdminPanelTest extends TestCase
             'start_date' => $rental->end_date->copy()->addDays(5), 'end_date' => $rental->end_date->copy()->addDays(8),
         ]);
         $other->save();
-        $this->actingAs($admin)->post("/admin/extensions/{$rental->id}", ['new_end_date' => $rental->end_date->copy()->addDays(6)->toDateString(), 'payment_proof' => $proof()])
-            ->assertSessionHasErrors('new_end_date');
+        $this->actingAs($admin)->post($url, ['new_end_date' => $rental->end_date->copy()->addDays(6)->toDateString(), 'payment_proof' => $proof()])->assertSessionHasErrors('new_end_date');
         $this->assertSame(0, $rental->extensions()->count());
 
-        // preview menampilkan pesan error, bukan rincian
-        $this->actingAs($admin)->get("/admin/extensions/{$rental->id}?new_end_date=".$rental->end_date->copy()->addDays(6)->toDateString())
+        $this->actingAs($admin)->get("/admin/rentals/{$rental->id}?new_end_date=".$rental->end_date->copy()->addDays(6)->toDateString())
             ->assertOk()->assertSee('bentrok dengan sewa lain');
+    }
 
-        // sewa yang sudah berakhir / belum mulai tidak bisa diperpanjang
-        $this->actingAs($admin)->get("/admin/extensions/{$other->id}")->assertNotFound();
+    public function test_upcoming_rental_can_be_extended_but_ended_or_unverified_cannot(): void
+    {
+        Storage::fake('public');
+        $this->seed(DemoSeeder::class);
+        $admin = User::where('role', UserRole::Admin)->first();
+        $proof = fn () => UploadedFile::fake()->image('b.jpg');
+
+        // belum mulai + sudah terverifikasi: boleh
+        $vehicle = \App\Models\Vehicle::create(['user_id' => User::where('email', 'demo.andi.pratama@example.test')->value('id'), 'type' => 'car', 'plate_number' => 'DD 77 XY', 'brand' => 'Honda', 'model' => 'Brio']);
+        $upcoming = $this->demoRental('C001')->replicate()->fill([
+            'start_date' => today()->addDays(10), 'end_date' => today()->addDays(12),
+            'vehicle_id' => $vehicle->id, 'garage_id' => \App\Models\Garage::where('code', 'C006')->value('id'),
+        ]);
+        $upcoming->save();
+        $this->actingAs($admin)->post("/admin/rentals/{$upcoming->id}/extend", ['new_end_date' => $upcoming->end_date->copy()->addDays(2)->toDateString(), 'payment_proof' => $proof()])->assertSessionDoesntHaveErrors();
+        $this->assertSame(1, $upcoming->extensions()->count());
+
+        // sudah berakhir: tidak boleh
+        $ended = Rental::approved()->whereDate('end_date', '<', today())->firstOrFail();
+        $this->actingAs($admin)->post("/admin/rentals/{$ended->id}/extend", ['new_end_date' => today()->addDays(3)->toDateString(), 'payment_proof' => $proof()])->assertSessionHasErrors('new_end_date');
+        $this->actingAs($admin)->get("/admin/rentals/{$ended->id}")->assertOk()->assertSee('sudah berakhir');
+
+        // belum diverifikasi: tidak boleh
+        $pending = Rental::where('payment_status', 'pending')->firstOrFail();
+        $this->actingAs($admin)->post("/admin/rentals/{$pending->id}/extend", ['new_end_date' => $pending->end_date->copy()->addDay()->toDateString(), 'payment_proof' => $proof()])->assertSessionHasErrors('new_end_date');
+    }
+
+    public function test_extension_admin_electricity_is_added(): void
+    {
+        Storage::fake('public');
+        $this->seed(DemoSeeder::class);
+        $admin = User::where('role', UserRole::Admin)->first();
+        $rental = $this->demoRental('E001');
+        $before = $rental->total_price;
+
+        $this->actingAs($admin)->post("/admin/rentals/{$rental->id}/extend", [
+            'new_end_date' => $rental->end_date->copy()->addDay()->toDateString(),
+            'extra_electricity' => 150000, 'payment_proof' => UploadedFile::fake()->image('b.jpg'),
+        ])->assertSessionDoesntHaveErrors();
+
+        $rental->refresh();
+        $extension = $rental->extensions()->sole();
+        $this->assertSame('150000.00', $extension->electricity_cost);
+        $this->assertSame('150000.00', $rental->electricity_cost);
+        // tambahan = 1 hari harian (90.000) + listrik 150.000
+        $this->assertSame('240000.00', $extension->additional_cost);
+        $this->assertSame(bcadd($before, '240000.00', 2), $rental->total_price);
     }
 
     public function test_report_numbers(): void
@@ -163,7 +213,7 @@ class AdminPanelTest extends TestCase
         $this->seed(DemoSeeder::class);
         $admin = User::where('role', UserRole::Admin)->first();
         $year = now()->year;
-        $expected = Rental::whereYear('start_date', $year)->sum('total_price');
+        $expected = Rental::approved()->whereYear('start_date', $year)->sum('total_price');
 
         $this->actingAs($admin)->get("/admin/reports?view=monthly&year={$year}")
             ->assertOk()->assertSee(\App\Support\Format::rupiah($expected));

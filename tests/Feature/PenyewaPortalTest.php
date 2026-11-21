@@ -163,13 +163,15 @@ class PenyewaPortalTest extends TestCase
         $this->actingAs($user)->post('/penyewa/rentals', $this->payload(['start_date' => today()->subDay()->toDateString()]))->assertSessionHasErrors('start_date');
         $this->actingAs($user)->post('/penyewa/rentals', $this->payload(['days' => 31]))->assertSessionHasErrors('days');
         $this->actingAs($user)->post('/penyewa/rentals', $this->payload(['days' => 0]))->assertSessionHasErrors('days');
-        // di bulan 28 hari, sewa harian maksimal 27 hari (28 hari = bulanan)
-        $feb = today()->addYear()->month(2)->startOfMonth();
-        while ($feb->daysInMonth !== 28) {
-            $feb->addYear()->month(2)->startOfMonth();
-        }
-        $this->actingAs($user)->post('/penyewa/rentals', $this->payload(['start_date' => $feb->toDateString(), 'days' => 28]))->assertSessionHasErrors('days');
         $this->assertSame(0, Rental::count());
+    }
+
+    public function test_daily_limit_is_shorter_in_a_28_day_month(): void
+    {
+        $this->travelTo(\Illuminate\Support\Carbon::parse('2027-02-01 10:00')); // Feb 2027 = 28 hari
+
+        $this->actingAs($this->penyewa())->post('/penyewa/rentals', $this->payload(['start_date' => '2027-02-01', 'days' => 28]))->assertSessionHasErrors('days');
+        $this->actingAs($this->penyewa())->post('/penyewa/rentals', $this->payload(['start_date' => '2027-02-01', 'days' => 27]))->assertRedirect();
     }
 
     public function test_proof_must_be_an_image(): void
