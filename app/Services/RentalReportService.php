@@ -24,10 +24,14 @@ class RentalReportService
     {
         $month = $view === 'daily' ? ($month ?? (int) now()->month) : $month;
 
+        [$from, $to] = $this->range($view, $year, $month);
+
+        // whereDate (bukan whereBetween) supaya hari terakhir periode ikut terhitung di semua database.
         $rentals = Rental::query()
             ->approved()
             ->with(['garage', 'penyewa'])
-            ->whereBetween('start_date', $this->range($view, $year, $month))
+            ->whereDate('start_date', '>=', $from)
+            ->whereDate('start_date', '<=', $to)
             ->get();
 
         $rows = match ($view) {
