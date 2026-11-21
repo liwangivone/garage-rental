@@ -4,6 +4,7 @@ namespace Tests\Feature;
 
 use App\Enums\GarageStatus;
 use App\Enums\GarageType;
+use App\Enums\PaymentStatus;
 use App\Enums\RegistrationStatus;
 use App\Enums\RentalType;
 use App\Enums\UserRole;
@@ -66,6 +67,7 @@ class GarageRentalSchemaTest extends TestCase
             ]);
         }
 
+        \App\Models\GaragePrice::create(['type' => GarageType::Bicycle, 'daily_price' => 10000]);
         $this->assertSame(['S001', 'S002'], Garage::orderBy('sequence')->pluck('code')->all());
         $this->assertSame('E010', Garage::makeCode(GarageType::ElectricCar, 10));
         $this->assertSame('250000.00', $batch->monthly_price);
@@ -130,7 +132,7 @@ class GarageRentalSchemaTest extends TestCase
             'rental_type' => RentalType::Monthly, 'start_date' => $start, 'end_date' => $end,
             'duration_days' => 31, 'monthly_count' => 1, 'daily_count' => 0,
             'daily_price' => 100000, 'monthly_price' => 2500000, 'rental_cost' => 2500000,
-            'total_price' => 2500000, 'payment_proof_path' => 'p.jpg',
+            'total_price' => 2500000, 'payment_proof_path' => 'p.jpg', 'payment_status' => PaymentStatus::Approved,
         ]);
 
         // sewa pertama: besok sampai +30 hari, dipesan lebih awal (start bukan hari ini)

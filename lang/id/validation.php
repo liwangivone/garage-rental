@@ -46,6 +46,8 @@ return [
         'month' => 'Bulan',
         'view' => 'Jenis laporan',
         'nik' => 'NIK',
+        'extra_electricity' => 'Biaya listrik tambahan',
+        'token' => 'Token',
         'name' => 'Nama lengkap',
         'phone' => 'Nomor telepon',
         'vehicle_id' => 'Kendaraan',

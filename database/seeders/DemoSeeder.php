@@ -3,6 +3,7 @@
 namespace Database\Seeders;
 
 use App\Enums\GarageType;
+use App\Enums\PaymentStatus;
 use App\Enums\RegistrationStatus;
 use App\Enums\RentalType;
 use App\Enums\UserRole;
@@ -74,6 +75,11 @@ class DemoSeeder extends Seeder
         $this->rental($sari, $moto, $g(GarageType::Bicycle, 1), $monthStart, Calc::earliestMonthlyEndDate($monthStart)); // bulanan
         $this->rental($budi, $ev, $g(GarageType::ElectricCar, 1), today()->subDay(), today()->addDays(10));
 
+        // Bukti bayar yang menunggu verifikasi dan yang ditolak (untuk mencoba halaman admin)
+        $this->rental($andi, $bike, $g(GarageType::Bicycle, 4), today()->addDays(3), Calc::endDateForDays(today()->addDays(3), 5), PaymentStatus::Pending);
+        $this->rental($sari, $moto, $g(GarageType::Bicycle, 5), today()->addDays(6), Calc::endDateForDays(today()->addDays(6), 2), PaymentStatus::Pending);
+        $this->rental($budi, $ev, $g(GarageType::ElectricCar, 3), today()->addDays(2), Calc::endDateForDays(today()->addDays(2), 3), PaymentStatus::Rejected, 'Nominal transfer tidak sesuai');
+
         // Riwayat bulan-bulan sebelumnya (untuk laporan)
         $history = [[$andi, $car, GarageType::Car], [$sari, $moto, GarageType::Bicycle], [$budi, $ev, GarageType::ElectricCar], [$andi, $bike, GarageType::Bicycle]];
         foreach (range(1, 5) as $k) {
@@ -82,13 +88,15 @@ class DemoSeeder extends Seeder
                 $this->rental($user, $vehicle, $g($type, 2 + ($k % 2)), $start, Calc::endDateForDays($start, 3 + (($k + $i) * 2) % 9));
             }
         }
+
+        Garage::syncAllStatuses();
     }
 
-    private function rental(User $user, Vehicle $vehicle, Garage $garage, CarbonInterface $start, CarbonInterface $end): Rental
+    private function rental(User $user, Vehicle $vehicle, Garage $garage, CarbonInterface $start, CarbonInterface $end, PaymentStatus $payment = PaymentStatus::Approved, ?string $reason = null): Rental
     {
-        $batch = $garage->batch;
+        $price = \App\Models\GaragePrice::forType($garage->type);
         $parts = Calc::breakdown($start, $end);
-        $cost = Calc::rentalCost($start, $end, (string) $batch->daily_price);
+        $cost = Calc::rentalCost($start, $end, (string) $price->daily_price);
 
         return Rental::create([
             'user_id' => $user->id, 'vehicle_id' => $vehicle->id, 'garage_id' => $garage->id,
@@ -96,11 +104,14 @@ class DemoSeeder extends Seeder
             'start_date' => $start, 'end_date' => $end,
             'duration_days' => Calc::durationInDays($start, $end),
             'monthly_count' => $parts['monthly'], 'daily_count' => $parts['daily'],
-            'daily_price' => $batch->daily_price, 'monthly_price' => $batch->monthly_price,
-            'electricity_price_per_kwh' => $batch->electricity_price_per_kwh,
+            'daily_price' => $price->daily_price, 'monthly_price' => $price->monthly_price,
+            'electricity_price_per_kwh' => $price->electricity_price_per_kwh,
             'electricity_cost' => 0, // rumus biaya listrik masih pending
             'rental_cost' => $cost, 'total_price' => $cost,
             'payment_proof_path' => self::PROOF_PATH,
+            'payment_status' => $payment,
+            'payment_rejection_reason' => $reason,
+            'payment_verified_at' => $payment === PaymentStatus::Pending ? null : now(),
         ]);
     }
 }

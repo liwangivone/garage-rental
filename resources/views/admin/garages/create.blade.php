@@ -24,6 +24,7 @@
             <label for="daily_price" class="label">Harga sewa harian (Rp)</label>
             <input id="daily_price" name="daily_price" type="number" min="1" step="1" value="{{ old('daily_price') }}" required class="input">
             <p class="mt-1 text-xs text-charcoal-500">Harga bulanan otomatis 25 × harga harian: <strong id="monthly-preview">—</strong></p>
+            <p id="price-note" class="mt-1 text-xs text-ember-600"></p>
             @error('daily_price')<p class="field-error">{{ $message }}</p>@enderror
         </div>
         <div id="kwh-field" class="hidden">
@@ -41,6 +42,10 @@
         (() => {
             const type = document.getElementById('type');
             const daily = document.getElementById('daily_price');
+            const prices = @json($prices);
+            const kwhInput = document.getElementById('electricity_price_per_kwh');
+            const note = document.getElementById('price-note');
+            let touched = false;
             const fmt = (n) => 'Rp ' + Math.round(n).toLocaleString('id-ID');
             const sync = () => {
                 document.getElementById('next-code').textContent = type.selectedOptions[0].dataset.next;
@@ -48,10 +53,19 @@
                 const electric = type.value === 'electric_car';
                 kwh.classList.toggle('hidden', !electric);
                 document.getElementById('electricity_price_per_kwh').required = electric;
+                const current = prices[type.value];
+                if (current && !touched) {
+                    daily.value = current.daily;
+                    if (current.kwh !== null) kwhInput.value = current.kwh;
+                }
+                note.textContent = current
+                    ? 'Harga ini berlaku untuk semua garasi tipe ini pada sewa berikutnya. Mengubahnya akan memperbarui harga tipe ini.'
+                    : 'Belum ada harga untuk tipe ini. Harga yang diisi menjadi harga seluruh garasi tipe ini.';
                 document.getElementById('monthly-preview').textContent = daily.value ? fmt(daily.value * 25) : '—';
             };
-            type.addEventListener('change', sync);
-            daily.addEventListener('input', sync);
+            type.addEventListener('change', () => { touched = false; sync(); });
+            daily.addEventListener('input', () => { touched = true; sync(); });
+            kwhInput.addEventListener('input', () => { touched = true; });
             sync();
         })();
     </script>

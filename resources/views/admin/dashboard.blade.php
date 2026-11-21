@@ -1,7 +1,8 @@
 <x-layouts.admin title="Dashboard" :subtitle="now()->translatedFormat('l, j F Y')">
-    <div class="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
+    <div class="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
         <x-stat label="Sewa aktif hari ini" :value="$activeCount" accent />
         <x-stat label="Pendaftar menunggu" :value="$pendingCount" hint="Perlu verifikasi" :accent="$pendingCount > 0" />
+        <x-stat label="Bukti bayar menunggu" :value="$pendingPayments" hint="Perlu verifikasi" :accent="$pendingPayments > 0" />
         <x-stat label="Pendapatan bulan ini" :value="\App\Support\Format::rupiah($monthRevenue)" hint="Berdasarkan tanggal mulai sewa" />
         <x-stat label="Total garasi" :value="$types->sum('total')" />
     </div>
@@ -27,10 +28,10 @@
         <section class="card">
             <div class="flex items-center justify-between border-b border-cream-200 px-5 py-3">
                 <h2 class="card-title">Segera berakhir (3 hari)</h2>
-                <a href="{{ route('admin.extensions.index') }}" class="text-xs font-semibold uppercase tracking-wider text-ember-600 hover:underline">Semua</a>
+                <a href="{{ route('admin.rentals.index', ['filter' => 'active']) }}" class="text-xs font-semibold uppercase tracking-wider text-ember-600 hover:underline">Semua</a>
             </div>
             @forelse ($endingSoon as $rental)
-                <a href="{{ route('admin.extensions.show', $rental) }}" class="flex items-center justify-between border-b border-cream-200 px-5 py-3 last:border-0 hover:bg-cream-100">
+                <a href="{{ route('admin.rentals.show', $rental) }}" class="flex items-center justify-between border-b border-cream-200 px-5 py-3 last:border-0 hover:bg-cream-100">
                     <div>
                         <p class="text-sm font-medium">{{ $rental->garage->code }} · {{ $rental->penyewa->name }}</p>
                         <p class="text-xs text-charcoal-500">{{ $rental->vehicle->brand }} {{ $rental->vehicle->model }}</p>

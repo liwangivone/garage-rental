@@ -8,8 +8,9 @@ use Illuminate\Support\Carbon;
 use Illuminate\Support\Collection;
 
 /**
- * Laporan sewa. Semua nilai sewa (termasuk perpanjangan) dihitung pada
- * tanggal MULAI sewa. Pengelompokan dilakukan di PHP supaya tidak bergantung pada
+ * Laporan sewa. Hanya sewa dengan pembayaran TERVERIFIKASI yang dihitung. Semua nilai
+ * sewa (termasuk perpanjangan) dihitung pada tanggal MULAI sewa. Biaya sewa dan biaya
+ * listrik dipisahkan; 'revenue' adalah totalnya. Pengelompokan dilakukan di PHP supaya tidak bergantung pada
  * fungsi tanggal khusus MySQL.
  */
 class RentalReportService
@@ -17,13 +18,14 @@ class RentalReportService
     public const VIEWS = ['monthly' => 'Per Bulan', 'daily' => 'Per Hari', 'type' => 'Per Tipe Garasi', 'penyewa' => 'Per Penyewa'];
 
     /**
-     * @return array{rows: Collection<int, array{label:string,count:int,revenue:float}>, count:int, revenue:float}
+     * @return array{rows: Collection<int, array{label:string,count:int,rental:float,electricity:float,revenue:float}>, count:int, rental:float, electricity:float, revenue:float}
      */
     public function build(string $view, int $year, ?int $month): array
     {
         $month = $view === 'daily' ? ($month ?? (int) now()->month) : $month;
 
         $rentals = Rental::query()
+            ->approved()
             ->with(['garage', 'penyewa'])
             ->whereBetween('start_date', $this->range($view, $year, $month))
             ->get();
@@ -38,6 +40,8 @@ class RentalReportService
         return [
             'rows' => $rows,
             'count' => $rows->sum('count'),
+            'rental' => $rows->sum('rental'),
+            'electricity' => $rows->sum('electricity'),
             'revenue' => $rows->sum('revenue'),
         ];
     }
@@ -55,7 +59,13 @@ class RentalReportService
 
     private function row(string $label, Collection $items): array
     {
-        return ['label' => $label, 'count' => $items->count(), 'revenue' => (float) $items->sum('total_price')];
+        return [
+            'label' => $label,
+            'count' => $items->count(),
+            'rental' => (float) $items->sum('rental_cost'),
+            'electricity' => (float) $items->sum('electricity_cost'),
+            'revenue' => (float) $items->sum('total_price'),
+        ];
     }
 
     private function monthly(Collection $rentals): Collection

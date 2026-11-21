@@ -1,6 +1,18 @@
 <x-layouts.customer :title="'Sewa '.$rental->garage->code" :subtitle="$rental->garage->type->label()">
     <x-slot:actions><a href="{{ route('penyewa.rentals.index') }}" class="btn btn-ghost btn-sm">← Kembali</a></x-slot:actions>
 
+    @if ($rental->payment_status === \App\Enums\PaymentStatus::Pending)
+        <div class="mb-6 border-l-4 border-ember-500 bg-ember-100 px-4 py-3 text-sm">
+            <strong class="font-semibold uppercase tracking-wider">Menunggu verifikasi.</strong> Admin sedang memeriksa bukti pembayaran Anda. Garasi sudah ditahan untuk Anda.
+        </div>
+    @elseif ($rental->payment_status === \App\Enums\PaymentStatus::Rejected)
+        <div class="mb-6 border-l-4 border-brick bg-brick/10 px-4 py-3 text-sm">
+            <strong class="font-semibold uppercase tracking-wider">Pembayaran ditolak.</strong>
+            @if ($rental->payment_rejection_reason) Alasan: {{ $rental->payment_rejection_reason }}. @endif
+            Garasi dilepas. Silakan buat sewa baru dengan bukti pembayaran yang benar.
+        </div>
+    @endif
+
     <div class="grid gap-6 lg:grid-cols-3">
         <div class="space-y-6 lg:col-span-2">
             <section class="card p-5">
@@ -52,7 +64,7 @@
                 </dl>
             </section>
             <section class="card p-5">
-                <h2 class="card-title mb-3">Bukti pelunasan</h2>
+                <div class="mb-3 flex items-center justify-between"><h2 class="card-title">Bukti pelunasan</h2><x-payment-badge :status="$rental->payment_status" /></div>
                 <a href="{{ Storage::disk('public')->url($rental->payment_proof_path) }}" target="_blank" class="block">
                     <img src="{{ Storage::disk('public')->url($rental->payment_proof_path) }}" alt="Bukti pelunasan" class="max-h-64 w-full border border-cream-200 object-contain bg-white">
                 </a>

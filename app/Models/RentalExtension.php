@@ -10,7 +10,7 @@ use Illuminate\Database\Eloquent\Relations\BelongsTo;
 #[Fillable([
     'rental_id', 'processed_by', 'previous_end_date', 'new_end_date',
     'previous_rental_type', 'new_rental_type', 'previous_total_price',
-    'new_total_price', 'additional_cost', 'payment_proof_path',
+    'new_total_price', 'additional_cost', 'electricity_cost', 'payment_proof_path',
 ])]
 class RentalExtension extends Model
 {
@@ -24,6 +24,7 @@ class RentalExtension extends Model
             'previous_total_price' => 'decimal:2',
             'new_total_price' => 'decimal:2',
             'additional_cost' => 'decimal:2',
+            'electricity_cost' => 'decimal:2',
         ];
     }
 

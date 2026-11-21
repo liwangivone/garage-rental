@@ -2,11 +2,12 @@
 
 namespace App\Services;
 
-use App\Enums\GarageStatus;
+use App\Enums\PaymentStatus;
 use App\Enums\GarageType;
 use App\Enums\RentalType;
 use App\Enums\VehicleType;
 use App\Models\Garage;
+use App\Models\GaragePrice;
 use App\Models\Rental;
 use App\Models\User;
 use App\Models\Vehicle;
@@ -19,7 +20,8 @@ use Illuminate\Validation\ValidationException;
 /**
  * Sewa baru oleh penyewa.
  *
- * - Tanggal mulai dipilih penyewa (tidak boleh sebelum hari ini).
+ * - Tanggal mulai dipilih penyewa: tidak boleh sebelum hari ini dan maksimal 30 hari ke depan.
+ * - Bukti bayar diverifikasi manual oleh admin; sewa yang belum diverifikasi tetap menahan garasi.
  * - Harian: 1..(hari bulan - 1), maksimal 30 hari. Bulanan: tepat satu bulan.
  *   Sewa lebih lama dibuat sebagai transaksi terpisah.
  * - Biaya listrik (mobil listrik di garasi mobil listrik) = kapasitas kWh x harga/kWh,
@@ -29,6 +31,7 @@ class RentalBookingService
 {
     public const MAX_DAILY_DAYS = 30;
     public const MAX_LISTED_GARAGES = 200;
+    public const MAX_ADVANCE_DAYS = 30;
 
     public static function maxDailyDays(Carbon $start): int
     {
@@ -49,7 +52,7 @@ class RentalBookingService
         $out = [
             'errors' => [], 'start' => null, 'end' => null, 'duration_days' => null,
             'breakdown' => null, 'allowed_garage_types' => [], 'garages' => [],
-            'garage' => null, 'vehicle_type' => null, 'costs' => null, 'max_daily_days' => null,
+            'garage' => null, 'price' => null, 'vehicle_type' => null, 'costs' => null, 'max_daily_days' => null,
         ];
 
         // Kendaraan
@@ -87,6 +90,11 @@ class RentalBookingService
             $start = null;
         }
 
+        if ($start && $start->gt(today()->addDays(self::MAX_ADVANCE_DAYS))) {
+            $errors['start_date'] = 'Tanggal mulai maksimal '.self::MAX_ADVANCE_DAYS.' hari dari hari ini.';
+            $start = null;
+        }
+
         if ($start && $rentalType) {
             $out['max_daily_days'] = self::maxDailyDays($start);
 
@@ -118,14 +126,15 @@ class RentalBookingService
         }
 
         if ($start && $end && $garageType) {
-            $out['garages'] = Garage::query()->with('batch')
+            $out['price'] = GaragePrice::forType($garageType);
+            $out['garages'] = Garage::query()
                 ->where('type', $garageType)
                 ->availableBetween($start, $end)
                 ->orderBy('sequence')->limit(self::MAX_LISTED_GARAGES)->get();
         }
 
         if (! empty($in['garage_id']) && $start && $end) {
-            $garage = Garage::with('batch')->find($in['garage_id']);
+            $garage = Garage::find($in['garage_id']);
             if (! $garage) {
                 $errors['garage_id'] = 'Garasi tidak ditemukan.';
             } elseif ($vehicleType && ! $vehicleType->canUseGarage($garage->type)) {
@@ -135,8 +144,14 @@ class RentalBookingService
             } elseif ($vehicle && $vehicle->hasRentalBetween($start, $end)) {
                 $errors['vehicle_id'] = 'Kendaraan ini sudah punya sewa pada tanggal tersebut. Sewa berikutnya harus mulai setelah sewa sebelumnya selesai.';
             } else {
-                $out['garage'] = $garage;
-                $out['costs'] = $this->costs($garage, $start, $end, $vehicleType, $battery);
+                $price = GaragePrice::forType($garage->type);
+                if (! $price) {
+                    $errors['garage_id'] = 'Harga garasi belum diatur admin.';
+                } else {
+                    $out['garage'] = $garage;
+                    $out['price'] = $price;
+                    $out['costs'] = $this->costs($garage, $price, $start, $end, $vehicleType, $battery);
+                }
             }
         }
 
@@ -146,20 +161,20 @@ class RentalBookingService
     }
 
     /** @return array{rental_cost:string, electricity_cost:string, total:string, electricity_price_per_kwh:?string} */
-    private function costs(Garage $garage, Carbon $start, Carbon $end, ?VehicleType $vehicleType, ?string $battery): array
+    private function costs(Garage $garage, GaragePrice $price, Carbon $start, Carbon $end, ?VehicleType $vehicleType, ?string $battery): array
     {
-        $rentalCost = RentalPeriodCalculator::rentalCost($start, $end, (string) $garage->batch->daily_price);
+        $rentalCost = RentalPeriodCalculator::rentalCost($start, $end, (string) $price->daily_price);
         $electricity = '0.00';
 
         if ($garage->type === GarageType::ElectricCar && $vehicleType === VehicleType::ElectricCar && $battery) {
-            $electricity = bcmul((string) $battery, (string) $garage->batch->electricity_price_per_kwh, 2);
+            $electricity = bcmul((string) $battery, (string) $price->electricity_price_per_kwh, 2);
         }
 
         return [
             'rental_cost' => $rentalCost,
             'electricity_cost' => $electricity,
             'total' => bcadd($rentalCost, $electricity, 2),
-            'electricity_price_per_kwh' => $garage->batch->electricity_price_per_kwh,
+            'electricity_price_per_kwh' => $price->electricity_price_per_kwh,
         ];
     }
 
@@ -180,9 +195,9 @@ class RentalBookingService
             'garages' => collect($q['garages'])->map(fn (Garage $g) => [
                 'id' => $g->id,
                 'code' => $g->code,
-                'daily_price' => Format::rupiah($g->batch->daily_price),
-                'monthly_price' => Format::rupiah($g->batch->monthly_price),
-                'electricity_price' => $g->batch->electricity_price_per_kwh ? Format::rupiah($g->batch->electricity_price_per_kwh) : null,
+                'daily_price' => $q['price'] ? Format::rupiah($q['price']->daily_price) : null,
+                'monthly_price' => $q['price'] ? Format::rupiah($q['price']->monthly_price) : null,
+                'electricity_price' => $q['price']?->electricity_price_per_kwh ? Format::rupiah($q['price']->electricity_price_per_kwh) : null,
             ])->values(),
             'costs' => $costs ? [
                 'rental_cost' => Format::rupiah($costs['rental_cost']),
@@ -228,6 +243,7 @@ class RentalBookingService
                 ? Vehicle::where('user_id', $user->id)->findOrFail($in['vehicle_id'])
                 : $user->vehicles()->create($vehicleData);
 
+            $price = $q['price'];
             $breakdown = $q['breakdown'];
             $rental = Rental::create([
                 'user_id' => $user->id,
@@ -239,16 +255,18 @@ class RentalBookingService
                 'duration_days' => $q['duration_days'],
                 'monthly_count' => $breakdown['monthly'],
                 'daily_count' => $breakdown['daily'],
-                'daily_price' => $garage->batch->daily_price,
-                'monthly_price' => $garage->batch->monthly_price,
+                'daily_price' => $price->daily_price,
+                'monthly_price' => $price->monthly_price,
                 'electricity_price_per_kwh' => $costs['electricity_price_per_kwh'],
                 'electricity_cost' => $costs['electricity_cost'],
                 'rental_cost' => $costs['rental_cost'],
                 'total_price' => $costs['total'],
                 'payment_proof_path' => $proof->store('payment-proofs', 'public'),
+                'payment_status' => PaymentStatus::Pending,
             ]);
 
-            $garage->update(['status' => GarageStatus::Used]);
+            // 'used' hanya bila sewa sudah berjalan hari ini; sewa mendatang tetap 'available'.
+            $garage->syncStatus();
 
             return $rental;
         });

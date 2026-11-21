@@ -53,13 +53,13 @@ class RentalController extends Controller
         );
 
         return redirect()->route('penyewa.rentals.show', $rental)
-            ->with('status', "Sewa garasi {$rental->garage->code} berhasil dibuat.");
+            ->with('status', "Sewa garasi {$rental->garage->code} dibuat. Admin akan memverifikasi bukti pembayaran Anda.");
     }
 
     public function show(Request $request, Rental $rental): View
     {
         abort_unless($rental->user_id === $request->user()->id, 404);
-        $rental->load(['garage.batch', 'vehicle', 'extensions']);
+        $rental->load(['garage', 'vehicle', 'extensions']);
 
         return view('penyewa.rentals.show', ['rental' => $rental]);
     }

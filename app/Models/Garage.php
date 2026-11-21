@@ -54,25 +54,48 @@ class Garage extends Model
     public function currentRental(): HasOne
     {
         return $this->hasOne(Rental::class)
+            ->occupying()
             ->whereDate('start_date', '<=', today())
             ->whereDate('end_date', '>=', today())
             ->latestOfMany('start_date');
     }
 
-    // Harga diambil dari kelompok pembuatnya.
-    public function getDailyPriceAttribute(): string
+    // Harga berlaku per tipe garasi (tabel garage_prices).
+    public function getDailyPriceAttribute(): ?string
     {
-        return $this->batch->daily_price;
+        return GaragePrice::forType($this->type)?->daily_price;
     }
 
-    public function getMonthlyPriceAttribute(): string
+    public function getMonthlyPriceAttribute(): ?string
     {
-        return $this->batch->monthly_price;
+        return GaragePrice::forType($this->type)?->monthly_price;
     }
 
     public function getElectricityPricePerKwhAttribute(): ?string
     {
-        return $this->batch->electricity_price_per_kwh;
+        return GaragePrice::forType($this->type)?->electricity_price_per_kwh;
+    }
+
+    /**
+     * Status mengikuti tanggal sewa: 'used' hanya bila ada sewa (belum ditolak) yang
+     * sedang berjalan hari ini; sebelum tanggal mulai dan setelah selesai 'available'.
+     */
+    public function syncStatus(): void
+    {
+        $active = $this->rentals()->occupying()
+            ->whereDate('start_date', '<=', today())->whereDate('end_date', '>=', today())->exists();
+
+        $status = $active ? GarageStatus::Used : GarageStatus::Available;
+        if ($this->status !== $status) {
+            $this->update(['status' => $status]);
+        }
+    }
+
+    /** Sinkronkan status seluruh garasi (dipakai scheduler harian). */
+    public static function syncAllStatuses(): void
+    {
+        static::query()->rentedOn()->where('status', '!=', GarageStatus::Used)->update(['status' => GarageStatus::Used]);
+        static::query()->notRentedOn()->where('status', '!=', GarageStatus::Available)->update(['status' => GarageStatus::Available]);
     }
 
     /** Garasi yang tidak punya sewa yang tumpang-tindih dengan rentang tanggal tertentu. */
@@ -83,7 +106,8 @@ class Garage extends Model
         ?int $ignoreRentalId = null,
     ): Builder {
         return $query->whereDoesntHave('rentals', function (Builder $q) use ($start, $end, $ignoreRentalId) {
-            $q->whereDate('start_date', '<=', $end)
+            $q->occupying()
+                ->whereDate('start_date', '<=', $end)
                 ->whereDate('end_date', '>=', $start)
                 ->when($ignoreRentalId, fn ($q) => $q->where('id', '!=', $ignoreRentalId));
         });
@@ -117,7 +141,16 @@ class Garage extends Model
         $date ??= today();
 
         return $query->whereHas('rentals', function (Builder $q) use ($date) {
-            $q->whereDate('start_date', '<=', $date)->whereDate('end_date', '>=', $date);
+            $q->occupying()->whereDate('start_date', '<=', $date)->whereDate('end_date', '>=', $date);
+        });
+    }
+
+    public function scopeNotRentedOn(Builder $query, ?CarbonInterface $date = null): Builder
+    {
+        $date ??= today();
+
+        return $query->whereDoesntHave('rentals', function (Builder $q) use ($date) {
+            $q->occupying()->whereDate('start_date', '<=', $date)->whereDate('end_date', '>=', $date);
         });
     }
 }

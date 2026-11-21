@@ -81,7 +81,8 @@
                 </div>
                 <div>
                     <label for="start_date" class="label">Tanggal mulai</label>
-                    <input id="start_date" name="start_date" type="date" min="{{ today()->toDateString() }}" value="{{ old('start_date', today()->toDateString()) }}" required class="input">
+                    <input id="start_date" name="start_date" type="date" min="{{ today()->toDateString() }}" max="{{ today()->addDays(\App\Services\RentalBookingService::MAX_ADVANCE_DAYS)->toDateString() }}" value="{{ old('start_date', today()->toDateString()) }}" required class="input">
+                    <p class="mt-1 text-xs text-charcoal-500">Maksimal {{ \App\Services\RentalBookingService::MAX_ADVANCE_DAYS }} hari dari hari ini.</p>
                     @error('start_date')<p class="field-error">{{ $message }}</p>@enderror
                     <p class="field-error" data-quote-error="start_date"></p>
                 </div>
