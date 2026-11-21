@@ -127,9 +127,9 @@ class BusinessRulesTest extends TestCase
         $user = $this->penyewa();
         $this->book($user, ['days' => 2])->assertRedirect(); // C001: 200.000
         $this->book($user, [
-            'vehicle_type' => 'electric_car', 'plate_number' => 'DD 9 EV', 'battery_capacity_kwh' => 50, 'days' => 1,
+            'vehicle_type' => 'electric_car', 'plate_number' => 'DD 9 EV', 'battery_capacity_kwh' => 50, 'battery_current_kwh' => 20, 'days' => 1,
             'garage_type' => 'electric_car', 'garage_id' => Garage::where('code', 'E001')->value('id'),
-        ])->assertRedirect(); // E001: 120.000 + 150.000 listrik
+        ])->assertRedirect(); // E001: 120.000 + 90.000 listrik ((50 - 20) kWh x 3.000)
         $this->book($user, ['plate_number' => 'DD 3 C', 'garage_id' => Garage::where('code', 'C002')->value('id')])->assertRedirect();
         [$car, $ev, $rejected] = Rental::orderBy('id')->get()->all();
 
@@ -145,8 +145,8 @@ class BusinessRulesTest extends TestCase
         $r = $report();
         $this->assertSame(2, $r['count']);
         $this->assertSame(320000.0, $r['rental']);
-        $this->assertSame(150000.0, $r['electricity']);
-        $this->assertSame(470000.0, $r['revenue']);
+        $this->assertSame(90000.0, $r['electricity']);
+        $this->assertSame(410000.0, $r['revenue']);
         $this->actingAs($this->admin)->get('/admin/reports?view=type')->assertOk()->assertSee('Listrik');
     }
 

@@ -47,7 +47,7 @@ class RentalController extends Controller
     {
         $rental = $service->book(
             $request->user(),
-            $request->only(['vehicle_id', 'vehicle_type', 'battery_capacity_kwh', 'rental_type', 'days', 'start_date', 'garage_type', 'garage_id']),
+            $request->only(['vehicle_id', 'vehicle_type', 'battery_capacity_kwh', 'battery_current_kwh', 'rental_type', 'days', 'start_date', 'garage_type', 'garage_id']),
             $request->vehicleData(),
             $request->file('payment_proof'),
         );

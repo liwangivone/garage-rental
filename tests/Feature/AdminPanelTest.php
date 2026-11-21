@@ -193,6 +193,7 @@ class AdminPanelTest extends TestCase
         $admin = User::where('role', UserRole::Admin)->first();
         $rental = $this->demoRental('E001');
         $before = $rental->total_price;
+        $electricityBefore = $rental->electricity_cost; // dari rumus (kapasitas - sisa baterai) x harga/kWh
 
         $this->actingAs($admin)->post("/admin/rentals/{$rental->id}/extend", [
             'new_end_date' => $rental->end_date->copy()->addDay()->toDateString(),
@@ -202,7 +203,7 @@ class AdminPanelTest extends TestCase
         $rental->refresh();
         $extension = $rental->extensions()->sole();
         $this->assertSame('150000.00', $extension->electricity_cost);
-        $this->assertSame('150000.00', $rental->electricity_cost);
+        $this->assertSame(bcadd($electricityBefore, '150000.00', 2), $rental->electricity_cost);
         // tambahan = 1 hari harian (90.000) + listrik 150.000
         $this->assertSame('240000.00', $extension->additional_cost);
         $this->assertSame(bcadd($before, '240000.00', 2), $rental->total_price);

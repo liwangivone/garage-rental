@@ -24,8 +24,8 @@ use Illuminate\Validation\ValidationException;
  * - Bukti bayar diverifikasi manual oleh admin; sewa yang belum diverifikasi tetap menahan garasi.
  * - Harian: 1..(hari bulan - 1), maksimal 30 hari. Bulanan: tepat satu bulan.
  *   Sewa lebih lama dibuat sebagai transaksi terpisah.
- * - Biaya listrik (mobil listrik di garasi mobil listrik) = kapasitas kWh x harga/kWh,
- *   sekali bayar di awal dan masuk ke total.
+ * - Biaya listrik (mobil listrik di garasi mobil listrik) = (kapasitas maks - sisa baterai saat ini)
+ *   kWh x harga/kWh, sekali bayar di awal dan masuk ke total. Sisa baterai diisi penyewa.
  */
 class RentalBookingService
 {
@@ -43,7 +43,7 @@ class RentalBookingService
      * masalah input dikembalikan di 'errors'. Dipakai oleh pratinjau (AJAX) dan oleh book().
      *
      * @param  array<string, mixed>  $in  rental_type, days, start_date, garage_type, garage_id,
-     *                                    vehicle_id | vehicle_type + battery_capacity_kwh
+     *                                    vehicle_id | vehicle_type + battery_capacity_kwh, battery_current_kwh
      * @return array<string, mixed>
      */
     public function quote(User $user, array $in): array
@@ -69,8 +69,10 @@ class RentalBookingService
             }
         } else {
             $vehicleType = VehicleType::tryFrom((string) ($in['vehicle_type'] ?? ''));
-            $battery = isset($in['battery_capacity_kwh']) && is_numeric($in['battery_capacity_kwh']) ? (string) $in['battery_capacity_kwh'] : null;
+            $battery = isset($in['battery_capacity_kwh']) && preg_match('/^\d+(\.\d+)?$/', trim((string) $in['battery_capacity_kwh'])) ? trim((string) $in['battery_capacity_kwh']) : null;
         }
+        $current = isset($in['battery_current_kwh']) && preg_match('/^\d+(\.\d+)?$/', trim((string) $in['battery_current_kwh']))
+            ? trim((string) $in['battery_current_kwh']) : null;
         $out['vehicle_type'] = $vehicleType;
         $out['allowed_garage_types'] = $vehicleType?->allowedGarageTypes() ?? [];
 
@@ -148,9 +150,17 @@ class RentalBookingService
                 if (! $price) {
                     $errors['garage_id'] = 'Harga garasi belum diatur admin.';
                 } else {
+                    if ($this->needsCharging($garage, $vehicleType)) {
+                        if ($current === null) {
+                            $errors['battery_current_kwh'] = 'Isi sisa baterai saat ini (kWh).';
+                        } elseif ($battery !== null && bccomp($current, (string) $battery, 2) > 0) {
+                            $errors['battery_current_kwh'] = 'Sisa baterai tidak boleh melebihi kapasitas baterai ('.$this->trimKwh((string) $battery).' kWh).';
+                        }
+                    }
+
                     $out['garage'] = $garage;
                     $out['price'] = $price;
-                    $out['costs'] = $this->costs($garage, $price, $start, $end, $vehicleType, $battery);
+                    $out['costs'] = $this->costs($garage, $price, $start, $end, $vehicleType, $battery, isset($errors['battery_current_kwh']) ? null : $current);
                 }
             }
         }
@@ -160,14 +170,31 @@ class RentalBookingService
         return $out;
     }
 
-    /** @return array{rental_cost:string, electricity_cost:string, total:string, electricity_price_per_kwh:?string} */
-    private function costs(Garage $garage, GaragePrice $price, Carbon $start, Carbon $end, ?VehicleType $vehicleType, ?string $battery): array
+    /** Biaya isi listrik hanya untuk mobil listrik di garasi mobil listrik. */
+    private function needsCharging(Garage $garage, ?VehicleType $vehicleType): bool
+    {
+        return $garage->type === GarageType::ElectricCar && $vehicleType === VehicleType::ElectricCar;
+    }
+
+    private function trimKwh(string $kwh): string
+    {
+        return str_contains($kwh, '.') ? rtrim(rtrim($kwh, '0'), '.') : $kwh;
+    }
+
+    /**
+     * Biaya listrik = (kapasitas maks - sisa baterai) x harga/kWh.
+     *
+     * @return array{rental_cost:string, electricity_cost:string, total:string, electricity_price_per_kwh:?string, battery_current_kwh:?string, battery_charge_kwh:?string}
+     */
+    private function costs(Garage $garage, GaragePrice $price, Carbon $start, Carbon $end, ?VehicleType $vehicleType, ?string $battery, ?string $current = null): array
     {
         $rentalCost = RentalPeriodCalculator::rentalCost($start, $end, (string) $price->daily_price);
         $electricity = '0.00';
+        $charge = null;
 
-        if ($garage->type === GarageType::ElectricCar && $vehicleType === VehicleType::ElectricCar && $battery) {
-            $electricity = bcmul((string) $battery, (string) $price->electricity_price_per_kwh, 2);
+        if ($this->needsCharging($garage, $vehicleType) && $battery !== null && $current !== null) {
+            $charge = bccomp($current, (string) $battery, 2) >= 0 ? '0.00' : bcsub((string) $battery, $current, 2);
+            $electricity = bcmul($charge, (string) $price->electricity_price_per_kwh, 2);
         }
 
         return [
@@ -175,6 +202,8 @@ class RentalBookingService
             'electricity_cost' => $electricity,
             'total' => bcadd($rentalCost, $electricity, 2),
             'electricity_price_per_kwh' => $price->electricity_price_per_kwh,
+            'battery_current_kwh' => $charge !== null ? bcadd($current, '0', 2) : null,
+            'battery_charge_kwh' => $charge,
         ];
     }
 
@@ -203,6 +232,7 @@ class RentalBookingService
                 'rental_cost' => Format::rupiah($costs['rental_cost']),
                 'electricity_cost' => Format::rupiah($costs['electricity_cost']),
                 'has_electricity' => bccomp($costs['electricity_cost'], '0', 2) > 0,
+                'charge_kwh' => $costs['battery_charge_kwh'] !== null ? $this->trimKwh($costs['battery_charge_kwh']) : null,
                 'total' => Format::rupiah($costs['total']),
             ] : null,
         ];
@@ -258,6 +288,8 @@ class RentalBookingService
                 'daily_price' => $price->daily_price,
                 'monthly_price' => $price->monthly_price,
                 'electricity_price_per_kwh' => $costs['electricity_price_per_kwh'],
+                'battery_current_kwh' => $costs['battery_current_kwh'],
+                'battery_charge_kwh' => $costs['battery_charge_kwh'],
                 'electricity_cost' => $costs['electricity_cost'],
                 'rental_cost' => $costs['rental_cost'],
                 'total_price' => $costs['total'],

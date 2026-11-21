@@ -31,6 +31,9 @@
                     @if ($rental->vehicle->battery_capacity_kwh)
                         <div><dt class="label">Kapasitas baterai</dt><dd>{{ rtrim(rtrim($rental->vehicle->battery_capacity_kwh, '0'), '.') }} kWh</dd></div>
                     @endif
+                    @if ($rental->battery_current_kwh !== null)
+                        <div><dt class="label">Sisa baterai saat sewa</dt><dd>{{ rtrim(rtrim($rental->battery_current_kwh, '0'), '.') ?: '0' }} kWh</dd></div>
+                    @endif
                 </dl>
             </section>
 
@@ -55,7 +58,7 @@
                 <dl class="space-y-2 text-sm">
                     <div class="flex justify-between"><dt class="text-charcoal-500">Biaya sewa</dt><dd>@rupiah($rental->rental_cost)</dd></div>
                     @if ($rental->electricity_cost > 0)
-                        <div class="flex justify-between"><dt class="text-charcoal-500">Isi listrik</dt><dd>@rupiah($rental->electricity_cost)</dd></div>
+                        <div class="flex justify-between"><dt class="text-charcoal-500">Isi listrik {{ $rental->battery_charge_kwh !== null ? '('.(rtrim(rtrim($rental->battery_charge_kwh, '0'), '.') ?: '0').' kWh)' : '' }}</dt><dd>@rupiah($rental->electricity_cost)</dd></div>
                     @endif
                     <div class="flex items-baseline justify-between border-t border-cream-300 pt-2">
                         <dt class="font-semibold uppercase tracking-wider">Total</dt>

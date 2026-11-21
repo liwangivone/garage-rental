@@ -17,6 +17,9 @@
                     <div><dt class="label">Mulai</dt><dd>{{ $rental->start_date->translatedFormat('j F Y') }}</dd></div>
                     <div><dt class="label">Selesai</dt><dd>{{ $rental->end_date->translatedFormat('j F Y') }}</dd></div>
                     <div><dt class="label">Biaya sewa</dt><dd>@rupiah($rental->rental_cost)</dd></div>
+                    @if ($rental->battery_charge_kwh !== null)
+                        <div><dt class="label">Sisa baterai saat sewa</dt><dd>{{ rtrim(rtrim($rental->battery_current_kwh, '0'), '.') ?: '0' }} kWh (isi {{ rtrim(rtrim($rental->battery_charge_kwh, '0'), '.') ?: '0' }} kWh)</dd></div>
+                    @endif
                     <div><dt class="label">Biaya listrik</dt><dd>@rupiah($rental->electricity_cost)</dd></div>
                     <div class="col-span-2"><dt class="label">Total</dt><dd class="font-display text-2xl font-semibold text-ember-600">@rupiah($rental->total_price)</dd></div>
                 </dl>

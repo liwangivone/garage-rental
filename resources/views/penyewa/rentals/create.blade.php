@@ -54,6 +54,14 @@
                         @error('battery_capacity_kwh')<p class="field-error">{{ $message }}</p>@enderror
                     </div>
                 </div>
+
+                <div id="current-battery-row" class="sm:col-span-2 hidden">
+                    <label for="battery_current_kwh" class="label">Sisa baterai saat ini (kWh)</label>
+                    <input id="battery_current_kwh" name="battery_current_kwh" type="number" step="0.1" min="0" max="500" value="{{ old('battery_current_kwh') }}" class="input max-w-xs" placeholder="15">
+                    <p class="mt-1 text-xs text-charcoal-500">Wajib untuk garasi mobil listrik. Biaya listrik = (kapasitas baterai − sisa baterai) × harga per kWh.<span id="capacity-hint"></span></p>
+                    @error('battery_current_kwh')<p class="field-error">{{ $message }}</p>@enderror
+                    <p class="field-error" data-quote-error="battery_current_kwh"></p>
+                </div>
             </div>
         </section>
 
@@ -161,6 +169,9 @@
                 $('new-vehicle').classList.toggle('contents', isNew());
                 $('plate-row').classList.toggle('hidden', t === 'bicycle');
                 $('battery-row').classList.toggle('hidden', t !== 'electric_car');
+                $('current-battery-row').classList.toggle('hidden', t !== 'electric_car');
+                const cap = isNew() ? $('battery_capacity_kwh').value : saved[vehicleSel.value]?.battery;
+                $('capacity-hint').textContent = cap ? ` Kapasitas penuh: ${parseFloat(cap)} kWh.` : '';
 
                 const opts = allowed[t] || [];
                 const current = garageTypeSel.value || oldGarageType;
@@ -186,6 +197,7 @@
                 } else {
                     params.set('vehicle_id', vehicleSel.value);
                 }
+                params.set('battery_current_kwh', $('battery_current_kwh').value);
                 const mine = ++seq;
                 try {
                     const res = await fetch(`${quoteUrl}?${params}`, { headers: { Accept: 'application/json' } });
@@ -224,7 +236,7 @@
                     box.innerHTML = `
                         <dl class="space-y-2">
                             <div class="flex justify-between"><dt class="text-charcoal-500">Biaya sewa</dt><dd>${esc(d.costs.rental_cost)}</dd></div>
-                            ${d.costs.has_electricity ? `<div class="flex justify-between"><dt class="text-charcoal-500">Isi listrik (penuh)</dt><dd>${esc(d.costs.electricity_cost)}</dd></div>` : ''}
+                            ${d.costs.charge_kwh !== null ? `<div class="flex justify-between"><dt class="text-charcoal-500">Isi listrik (${esc(d.costs.charge_kwh)} kWh)</dt><dd>${esc(d.costs.electricity_cost)}</dd></div>` : ''}
                             <div class="flex items-baseline justify-between border-t border-cream-300 pt-2"><dt class="font-semibold uppercase tracking-wider">Total bayar</dt>
                             <dd class="font-display text-2xl font-semibold text-ember-600">${esc(d.costs.total)}</dd></div>
                         </dl>`;
@@ -239,7 +251,8 @@
             vehicleSel.addEventListener('change', () => { syncVehicle(); schedule(); });
             typeSel.addEventListener('change', () => { syncVehicle(); schedule(); });
             garageTypeSel.addEventListener('change', () => { selectedGarage = ''; schedule(); });
-            ['battery_capacity_kwh', 'days', 'start_date'].forEach((id) => $(id).addEventListener('input', schedule));
+            ['battery_capacity_kwh', 'battery_current_kwh', 'days', 'start_date'].forEach((id) => $(id).addEventListener('input', schedule));
+            $('battery_capacity_kwh').addEventListener('input', syncVehicle);
             document.querySelectorAll('input[name=rental_type]').forEach((r) => r.addEventListener('change', () => { syncRental(); schedule(); }));
 
             $('payment_proof').addEventListener('change', (e) => {

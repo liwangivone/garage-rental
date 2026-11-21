@@ -11,7 +11,7 @@ use Illuminate\Database\Eloquent\Relations\HasMany;
 
 #[Fillable([
     'user_id', 'vehicle_id', 'garage_id', 'rental_type', 'start_date', 'end_date', 'duration_days', 'monthly_count', 'daily_count',
-    'daily_price', 'monthly_price', 'electricity_price_per_kwh', 'electricity_cost',
+    'daily_price', 'monthly_price', 'electricity_price_per_kwh', 'battery_current_kwh', 'battery_charge_kwh', 'electricity_cost',
     'rental_cost', 'total_price', 'payment_proof_path',
     'payment_status', 'payment_rejection_reason', 'payment_verified_at', 'payment_verified_by',
 ])]
@@ -29,6 +29,8 @@ class Rental extends Model
             'daily_price' => 'decimal:2',
             'monthly_price' => 'decimal:2',
             'electricity_price_per_kwh' => 'decimal:2',
+            'battery_current_kwh' => 'decimal:2',
+            'battery_charge_kwh' => 'decimal:2',
             'electricity_cost' => 'decimal:2',
             'rental_cost' => 'decimal:2',
             'total_price' => 'decimal:2',
