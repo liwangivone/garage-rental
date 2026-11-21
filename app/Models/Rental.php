@@ -61,8 +61,27 @@ class Rental extends Model
     {
         $newEnd = \Illuminate\Support\Carbon::instance($newEndDate)->startOfDay();
 
-        return $newEnd->gt($this->end_date)
-            && $this->garage->isFreeBetween($this->start_date, $newEnd, $this->id);
+        return $this->extensionError($newEnd) === null;
+    }
+
+    /** Alasan perpanjangan ditolak, atau null bila boleh. */
+    public function extensionError(\Carbon\CarbonInterface $newEndDate): ?string
+    {
+        $newEnd = \Illuminate\Support\Carbon::instance($newEndDate)->startOfDay();
+
+        if (! $newEnd->gt($this->end_date)) {
+            return 'Tanggal selesai baru harus setelah tanggal selesai saat ini.';
+        }
+
+        if (! $this->garage->isFreeBetween($this->start_date, $newEnd, $this->id)) {
+            return 'Tanggal tersebut bentrok dengan sewa lain di garasi ini.';
+        }
+
+        if ($this->vehicle->hasRentalBetween($this->start_date, $newEnd, $this->id)) {
+            return 'Tanggal tersebut bentrok dengan sewa lain milik kendaraan yang sama.';
+        }
+
+        return null;
     }
 
     public function isActiveOn(?\DateTimeInterface $date = null): bool

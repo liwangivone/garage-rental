@@ -4,6 +4,114 @@
 @source '../../storage/framework/views/*.php';
 
 @theme {
-    --font-sans: 'Instrument Sans', ui-sans-serif, system-ui, sans-serif, 'Apple Color Emoji', 'Segoe UI Emoji',
-        'Segoe UI Symbol', 'Noto Color Emoji';
+    --font-sans: 'Barlow', ui-sans-serif, system-ui, sans-serif;
+    --font-display: 'Barlow Condensed', 'Barlow', ui-sans-serif, system-ui, sans-serif;
+
+    /* Charcoal (abu tua) */
+    --color-charcoal-950: #17181a;
+    --color-charcoal-900: #1f2124;
+    --color-charcoal-800: #2a2d31;
+    --color-charcoal-700: #3a3e43;
+    --color-charcoal-600: #50555b;
+    --color-charcoal-500: #6e747b;
+    --color-charcoal-400: #9aa0a6;
+
+    /* Krem */
+    --color-cream-50: #fbf8f1;
+    --color-cream-100: #f4eee1;
+    --color-cream-200: #e7dfcb;
+    --color-cream-300: #d6cbb0;
+
+    /* Oranye (aksen) */
+    --color-ember-100: #fbe3d1;
+    --color-ember-500: #e8681a;
+    --color-ember-600: #c9560f;
+
+    /* Status */
+    --color-olive: #5f7f38;
+    --color-brick: #b23a2b;
+}
+
+@layer base {
+    body {
+        @apply bg-cream-100 font-sans text-charcoal-800 antialiased;
+    }
+    h1, h2, h3 {
+        @apply font-display uppercase tracking-wide text-charcoal-900;
+    }
+    :focus-visible {
+        @apply outline-2 outline-offset-2 outline-ember-500;
+    }
+}
+
+@layer components {
+    .card {
+        @apply rounded-sm border border-cream-200 bg-cream-50;
+    }
+    .card-title {
+        @apply font-display text-lg uppercase tracking-wider text-charcoal-900;
+    }
+    .label {
+        @apply mb-1 block text-xs font-semibold uppercase tracking-wider text-charcoal-600;
+    }
+    .input {
+        @apply block w-full rounded-sm border border-cream-300 bg-white px-3 py-2 text-sm text-charcoal-900 placeholder:text-charcoal-400;
+    }
+    .input:focus {
+        @apply border-ember-500 outline-none ring-1 ring-ember-500;
+    }
+    .field-error {
+        @apply mt-1 text-xs text-brick;
+    }
+    .btn {
+        @apply inline-flex items-center justify-center gap-2 rounded-sm border px-4 py-2 text-sm font-semibold uppercase tracking-wider transition-colors cursor-pointer;
+    }
+    .btn-primary {
+        @apply border-ember-500 bg-ember-500 text-white hover:bg-ember-600 hover:border-ember-600;
+    }
+    .btn-dark {
+        @apply border-charcoal-800 bg-charcoal-800 text-cream-50 hover:bg-charcoal-700;
+    }
+    .btn-ghost {
+        @apply border-cream-300 bg-transparent text-charcoal-700 hover:bg-cream-200;
+    }
+    .btn-danger {
+        @apply border-brick bg-transparent text-brick hover:bg-brick hover:text-white;
+    }
+    .btn-sm {
+        @apply px-3 py-1.5 text-xs;
+    }
+    .table-wrap {
+        @apply overflow-x-auto;
+    }
+    .table {
+        @apply w-full text-left text-sm;
+    }
+    .table th {
+        @apply whitespace-nowrap border-b border-cream-300 bg-cream-100 px-4 py-2.5 text-xs font-semibold uppercase tracking-wider text-charcoal-600;
+    }
+    .table td {
+        @apply border-b border-cream-200 px-4 py-3 align-middle;
+    }
+    .table tbody tr:last-child td {
+        @apply border-b-0;
+    }
+    .badge {
+        @apply inline-flex items-center rounded-sm px-2 py-0.5 text-xs font-semibold uppercase tracking-wider;
+    }
+    .badge-ember {
+        @apply bg-ember-100 text-ember-600;
+    }
+    .badge-olive {
+        @apply bg-olive/15 text-olive;
+    }
+    .badge-brick {
+        @apply bg-brick/10 text-brick;
+    }
+    .badge-muted {
+        @apply bg-cream-200 text-charcoal-600;
+    }
+    .hazard {
+        background: repeating-linear-gradient(-45deg, var(--color-ember-500) 0 10px, var(--color-charcoal-900) 10px 20px);
+    }
 }
