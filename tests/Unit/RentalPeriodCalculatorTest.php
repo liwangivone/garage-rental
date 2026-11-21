@@ -88,4 +88,101 @@ class RentalPeriodCalculatorTest extends TestCase
         // 92 hari: 1 bulan (2.500.000) + 61 hari harian (6.100.000)
         $this->assertSame('8600000.00', Calc::rentalCost(Carbon::parse('2025-10-01'), Carbon::parse('2025-12-31'), '100000'));
     }
+
+    public static function monthThresholds(): array
+    {
+        return [
+            'Jan 2025' => ['2025-01-15', 31], 'Feb 2025 (28)' => ['2025-02-10', 28], 'Feb 2024 kabisat (29)' => ['2024-02-10', 29],
+            'Mar' => ['2025-03-01', 31], 'Apr' => ['2025-04-01', 30], 'Mei' => ['2025-05-01', 31], 'Jun' => ['2025-06-30', 30],
+            'Jul' => ['2025-07-01', 31], 'Agu' => ['2025-08-01', 31], 'Sep' => ['2025-09-01', 30], 'Okt' => ['2025-10-31', 31],
+            'Nov' => ['2025-11-01', 30], 'Des' => ['2025-12-01', 31],
+        ];
+    }
+
+    #[DataProvider('monthThresholds')]
+    public function test_monthly_threshold_is_days_in_start_month(string $start, int $expected): void
+    {
+        $this->assertSame($expected, Calc::monthlyThreshold(Carbon::parse($start)));
+    }
+
+    public function test_threshold_follows_start_month_not_end_month(): void
+    {
+        // Mulai 25 Feb 2025 (28 hari): 28 hari sampai 24 Mar sudah bulanan, walau Maret 31 hari.
+        $this->assertSame(RentalType::Monthly, Calc::classify(Carbon::parse('2025-02-25'), Carbon::parse('2025-03-24')));
+        // Mulai 25 Mar 2025 (31 hari): rentang yang sama panjang tetap harian.
+        $this->assertSame(RentalType::Daily, Calc::classify(Carbon::parse('2025-03-25'), Carbon::parse('2025-04-21')));
+    }
+
+    public function test_start_at_month_end_crosses_into_next_month(): void
+    {
+        // 31 Jan + 31 hari inklusif = 2 Maret (Feb 2025 hanya 28 hari)
+        $this->assertSame('2025-03-02', Calc::earliestMonthlyEndDate(Carbon::parse('2025-01-31'))->toDateString());
+        // tahun kabisat: 31 Jan 2024 -> 1 Maret
+        $this->assertSame('2024-03-01', Calc::earliestMonthlyEndDate(Carbon::parse('2024-01-31'))->toDateString());
+    }
+
+    public function test_year_boundary(): void
+    {
+        $this->assertSame(RentalType::Monthly, Calc::classify(Carbon::parse('2025-12-20'), Carbon::parse('2026-01-19'))); // 31 hari
+        $this->assertSame(RentalType::Daily, Calc::classify(Carbon::parse('2025-12-20'), Carbon::parse('2026-01-18'))); // 30 hari
+        $this->assertSame('2026-01-19', Calc::earliestMonthlyEndDate(Carbon::parse('2025-12-20'))->toDateString());
+    }
+
+    public function test_time_of_day_is_ignored(): void
+    {
+        $this->assertSame(2, Calc::durationInDays(Carbon::parse('2025-10-01 23:59:59'), Carbon::parse('2025-10-02 00:00:01')));
+        $this->assertSame(1, Calc::durationInDays(Carbon::parse('2025-10-01 00:00:00'), Carbon::parse('2025-10-01 23:59:59')));
+    }
+
+    public function test_breakdown_edges(): void
+    {
+        $oct1 = Carbon::parse('2025-10-01');
+        $this->assertSame(['monthly' => 1, 'daily' => 1], Calc::breakdown($oct1, Carbon::parse('2025-11-01'))); // 32 hari
+        $this->assertSame(['monthly' => 0, 'daily' => 30], Calc::breakdown($oct1, Carbon::parse('2025-10-30')));
+        // Feb 2025 (28 hari): 28 hari = bulanan, 27 hari = harian
+        $feb = Carbon::parse('2025-02-01');
+        $this->assertSame(['monthly' => 1, 'daily' => 0], Calc::breakdown($feb, Carbon::parse('2025-02-28')));
+        $this->assertSame(['monthly' => 0, 'daily' => 27], Calc::breakdown($feb, Carbon::parse('2025-02-27')));
+        // perpanjangan panjang: bulan pertama bulanan, sisanya harian
+        $this->assertSame(['monthly' => 1, 'daily' => 305], Calc::breakdown($oct1, Carbon::parse('2026-09-01')));
+    }
+
+    public function test_end_before_start_yields_nothing_billable(): void
+    {
+        $start = Carbon::parse('2025-10-05');
+        $end = Carbon::parse('2025-10-01');
+
+        $this->assertSame(['monthly' => 0, 'daily' => 0], Calc::breakdown($start, $end));
+        $this->assertSame('0.00', Calc::rentalCost($start, $end, '100000'));
+        $this->assertFalse(Calc::isWithinMaxDuration($start, $end));
+    }
+
+    public function test_cost_keeps_decimal_precision(): void
+    {
+        $oct1 = Carbon::parse('2025-10-01');
+
+        $this->assertSame('37501.50', Calc::rentalCost($oct1, Carbon::parse('2025-10-03'), '12500.50'));
+        $this->assertSame('312512.50', Calc::rentalCost($oct1, Carbon::parse('2025-10-31'), '12500.50'));
+        $this->assertSame('0.00', Calc::rentalCost($oct1, Carbon::parse('2025-10-03'), '0'));
+    }
+
+    public function test_extension_cost_can_drop_when_crossing_into_monthly(): void
+    {
+        // Aturan harga yang diketahui: 30 hari harian (3.000.000) lebih mahal dari 31 hari bulanan (2.500.000).
+        $oct1 = Carbon::parse('2025-10-01');
+        $daily30 = Calc::rentalCost($oct1, Calc::endDateForDays($oct1, 30), '100000');
+        $monthly31 = Calc::rentalCost($oct1, Calc::endDateForDays($oct1, 31), '100000');
+
+        $this->assertSame('3000000.00', $daily30);
+        $this->assertSame('2500000.00', $monthly31);
+        $this->assertSame('-500000.00', bcsub($monthly31, $daily30, 2));
+    }
+
+    public function test_start_date_validation_uses_calendar_day(): void
+    {
+        $now = Carbon::parse('2025-10-10 23:30');
+
+        $this->assertTrue(Calc::isValidStartDate(Carbon::parse('2025-10-10 00:00'), $now));
+        $this->assertFalse(Calc::isValidStartDate(Carbon::parse('2025-10-09 23:59'), $now));
+    }
 }

@@ -50,14 +50,19 @@ class Garage extends Model
         return $this->hasMany(Rental::class);
     }
 
-    /** Sewa yang sedang berjalan pada hari ini. */
+    /**
+     * Sewa yang sedang berjalan pada hari ini. Filter harus dikirim ke subquery ofMany;
+     * bila tidak, sewa dengan start_date terbesar (mis. sewa mendatang) terpilih lebih dulu
+     * lalu tersaring habis, sehingga sewa yang sedang berjalan tidak terdeteksi.
+     */
     public function currentRental(): HasOne
     {
-        return $this->hasOne(Rental::class)
-            ->occupying()
-            ->whereDate('start_date', '<=', today())
-            ->whereDate('end_date', '>=', today())
-            ->latestOfMany('start_date');
+        return $this->hasOne(Rental::class)->ofMany(
+            ['start_date' => 'max'],
+            fn ($query) => $query->occupying()
+                ->whereDate('start_date', '<=', today())
+                ->whereDate('end_date', '>=', today()),
+        );
     }
 
     // Harga berlaku per tipe garasi (tabel garage_prices).
