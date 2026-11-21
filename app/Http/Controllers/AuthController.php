@@ -26,19 +26,11 @@ class AuthController extends Controller
                 ->withErrors(['email' => 'Email atau password salah.']);
         }
 
-        // Tampilan penyewa belum tersedia; saat ini hanya admin yang boleh masuk.
-        if (! $request->user()->isAdmin()) {
-            Auth::logout();
-            $request->session()->invalidate();
-            $request->session()->regenerateToken();
-
-            return back()->withInput($request->only('email'))
-                ->withErrors(['email' => 'Akun ini bukan admin. Akses penyewa belum tersedia.']);
-        }
-
         $request->session()->regenerate();
 
-        return redirect()->intended(route('admin.dashboard'));
+        return redirect()->intended(
+            $request->user()->isAdmin() ? route('admin.dashboard') : route('penyewa.dashboard'),
+        );
     }
 
     public function logout(Request $request): RedirectResponse

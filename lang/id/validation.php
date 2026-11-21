@@ -13,6 +13,7 @@ return [
     'enum' => ':attribute tidak valid.',
     'min' => [
         'numeric' => ':attribute minimal :min.',
+        'file' => ':attribute minimal :min KB.',
         'string' => ':attribute minimal :min karakter.',
     ],
     'max' => [
@@ -23,6 +24,12 @@ return [
     'between' => [
         'numeric' => ':attribute harus antara :min dan :max.',
     ],
+    'confirmed' => 'Konfirmasi :attribute tidak cocok.',
+    'unique' => ':attribute sudah terdaftar.',
+    'digits' => ':attribute harus :digits digit angka.',
+    'regex' => 'Format :attribute tidak valid.',
+    'mimes' => ':attribute harus berformat :values.',
+    'exists' => ':attribute tidak valid.',
     'uploaded' => ':attribute gagal diunggah.',
 
     'attributes' => [
@@ -38,5 +45,19 @@ return [
         'year' => 'Tahun',
         'month' => 'Bulan',
         'view' => 'Jenis laporan',
+        'nik' => 'NIK',
+        'name' => 'Nama lengkap',
+        'phone' => 'Nomor telepon',
+        'vehicle_id' => 'Kendaraan',
+        'vehicle_type' => 'Tipe kendaraan',
+        'plate_number' => 'Nomor plat',
+        'brand' => 'Merek',
+        'model' => 'Tipe kendaraan',
+        'battery_capacity_kwh' => 'Kapasitas baterai',
+        'rental_type' => 'Tipe sewa',
+        'days' => 'Jumlah hari',
+        'start_date' => 'Tanggal mulai',
+        'garage_type' => 'Tipe garasi',
+        'garage_id' => 'Garasi',
     ],
 ];
