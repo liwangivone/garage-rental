@@ -20,7 +20,7 @@
 <div id="sidebar-backdrop" data-sidebar-toggle class="fixed inset-0 z-30 hidden bg-charcoal-950/60 lg:hidden"></div>
 
 <aside id="sidebar" class="fixed inset-y-0 left-0 z-40 flex w-64 -translate-x-full flex-col bg-charcoal-900 text-cream-100 transition-transform lg:translate-x-0">
-    <div class="hazard h-1.5"></div>
+    <div class="accent-bar h-1.5"></div>
     <div class="px-6 py-6">
         <p class="font-display text-2xl font-bold uppercase leading-none tracking-wider text-cream-50">Garage<span class="text-ember-500">Rental</span></p>
         <p class="mt-1 text-xs uppercase tracking-[0.2em] text-charcoal-400">Panel Admin</p>

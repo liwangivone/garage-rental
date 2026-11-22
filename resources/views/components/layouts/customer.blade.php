@@ -12,7 +12,7 @@
     ];
 @endphp
 <header class="bg-charcoal-900 text-cream-100">
-    <div class="hazard h-1.5"></div>
+    <div class="accent-bar h-1.5"></div>
     <div class="mx-auto flex max-w-5xl flex-wrap items-center gap-x-6 gap-y-2 px-4 py-3 sm:px-8">
         <a href="{{ route('penyewa.dashboard') }}" class="font-display text-xl font-bold uppercase tracking-wider text-cream-50">Garage<span class="text-ember-500">Rental</span></a>
         <nav class="flex flex-1 items-center gap-1 text-sm font-medium uppercase tracking-wider">
