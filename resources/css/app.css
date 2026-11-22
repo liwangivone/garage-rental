@@ -111,7 +111,8 @@
     .badge-muted {
         @apply bg-cream-200 text-charcoal-600;
     }
-    .hazard {
-        background: repeating-linear-gradient(-45deg, var(--color-ember-500) 0 10px, var(--color-charcoal-900) 10px 20px);
+    .accent-bar {
+        background: linear-gradient(90deg, transparent 0%, var(--color-ember-600) 20%, #f4a259 50%, var(--color-ember-600) 80%, transparent 100%);
+        box-shadow: 0 0 14px 0 rgb(232 104 26 / 0.35);
     }
 }
